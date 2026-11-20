@@ -22,16 +22,18 @@
 	let { data, children }: Props = $props();
 
 	const activeProject = $derived(
-		page.url.pathname.startsWith('/projects/')
-			? data.projects.find((project) => page.url.pathname === `/projects/${project.id}`)
-			: undefined
+		data.projects.find((project) => {
+			const base = `/projects/${project.id}`;
+			return page.url.pathname === base || page.url.pathname.startsWith(`${base}/`);
+		})
 	);
 
 	const pageTitle = $derived.by(() => {
 		const path = page.url.pathname;
 		if (path === '/inbox') return 'Inbox';
 		if (path === '/projects/new') return 'New project';
-		return activeProject?.name ?? '';
+		if (!activeProject) return '';
+		return path.endsWith('/settings') ? `${activeProject.name} rules` : activeProject.name;
 	});
 </script>
 
