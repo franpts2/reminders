@@ -398,12 +398,14 @@
 					</h2>
 					<ul>
 						{#each group.items as reminder (reminder.id)}
+							{@const unread =
+								reminder.seen_at === null && !seenLocally.includes(reminder.id)}
 							<ReminderRow
 								{reminder}
 								typeLabel={shortLabels.get(reminder.type) ?? reminder.type}
 								active={activeId === reminder.id}
-								unread={reminder.seen_at === null && !seenLocally.includes(reminder.id)}
-								isNew={isFromLatestScan(reminder)}
+								{unread}
+								isNew={unread || isFromLatestScan(reminder)}
 								onDismiss={dismiss}
 								onSnooze={snooze}
 								onSeen={markSeen}
