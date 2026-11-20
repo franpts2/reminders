@@ -15,6 +15,7 @@
 			user?: App.Locals['user'];
 			projects: Array<{ id: string; name: string; owner: string; repo: string }>;
 			unreadCount: number;
+			snoozedCount: number;
 		};
 		children: Snippet;
 	}
@@ -49,7 +50,12 @@
 
 {#if data.user}
 	<Sidebar.Provider>
-		<AppSidebar user={data.user} projects={data.projects} unreadCount={data.unreadCount} />
+		<AppSidebar
+			user={data.user}
+			projects={data.projects}
+			unreadCount={data.unreadCount}
+			snoozedCount={data.snoozedCount}
+		/>
 
 		<div class="flex min-w-0 flex-1 flex-col">
 			<header
