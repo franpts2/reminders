@@ -77,7 +77,7 @@
 	bind:this={rowElement}
 	id="reminder-{reminder.id}"
 	tabindex="-1"
-	data-active={active}
+	data-active={active ? 'true' : undefined}
 	class={cn(
 		'group relative flex items-start gap-3 border-b px-3 py-3 outline-none transition-colors sm:px-4',
 		'hover:bg-muted/60 data-[active=true]:bg-accent/70 focus-visible:bg-accent/70'

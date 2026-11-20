@@ -73,7 +73,10 @@
 					{#each projects as project (project.id)}
 						<Sidebar.MenuItem>
 							<Sidebar.MenuButton
-								isActive={pathname === `/projects/${project.id}`}
+								isActive={
+									pathname === `/projects/${project.id}` ||
+									pathname.startsWith(`/projects/${project.id}/`)
+								}
 								tooltipContent={project.name}
 							>
 								{#snippet child({ props })}
