@@ -32,6 +32,18 @@ export interface GitHubReview {
 	user: { login: string };
 }
 
+export interface GitHubTimelineEvent {
+	event: string;
+	source?: {
+		type?: string;
+		issue?: {
+			number: number;
+			state?: string;
+			pull_request?: { url: string };
+		};
+	};
+}
+
 async function githubFetch<T>(url: string, accessToken: string): Promise<T> {
 	const response = await fetch(url, {
 		headers: {
@@ -81,6 +93,44 @@ export async function fetchPullRequestReviews(
 		`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/reviews`,
 		accessToken
 	);
+}
+
+const TIMELINE_PAGE_SIZE = 100;
+const TIMELINE_MAX_PAGES = 5;
+
+/**
+ * Pull requests that reference an issue. REST does not expose linked pull
+ * requests on the issue itself, so they have to be read from the timeline.
+ * A pull request linked only through the UI produces a `connected` event
+ * that carries no subject, so cross-references are the usable signal.
+ */
+export async function fetchLinkedPullRequestNumbers(
+	owner: string,
+	repo: string,
+	issueNumber: number,
+	accessToken: string
+): Promise<number[]> {
+	const numbers = new Set<number>();
+
+	for (let page = 1; page <= TIMELINE_MAX_PAGES; page++) {
+		const events = await githubFetch<GitHubTimelineEvent[]>(
+			`https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/timeline?per_page=${TIMELINE_PAGE_SIZE}&page=${page}`,
+			accessToken
+		);
+
+		for (const event of events) {
+			if (event.event !== 'cross-referenced') continue;
+
+			const source = event.source?.issue;
+			if (!source?.pull_request) continue;
+
+			numbers.add(source.number);
+		}
+
+		if (events.length < TIMELINE_PAGE_SIZE) break;
+	}
+
+	return [...numbers];
 }
 
 export async function validateRepoAccess(
