@@ -1,51 +1,89 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
+	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
+	import * as Field from '$lib/components/ui/field/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+
 	interface Props {
 		form?: { error?: string };
 	}
 
 	let { form }: Props = $props();
+
+	let creating = $state(false);
 </script>
 
-<div class="max-w-xl mx-auto">
-	<h1 class="text-2xl font-bold text-gray-900">Create Project</h1>
-	<p class="mt-2 text-gray-600">Link a public GitHub repository to start tracking reminders.</p>
+<div class="mx-auto max-w-xl">
+	<a
+		href="/inbox"
+		class={buttonVariants({ variant: 'ghost', size: 'sm', class: '-ml-2 mb-3' })}
+	>
+		<ArrowLeftIcon class="size-4" />
+		Inbox
+	</a>
 
-	<form method="POST" class="mt-8 space-y-6">
-		<div>
-			<label for="name" class="block text-sm font-medium text-gray-700">Project name</label>
-			<input
-				type="text"
-				name="name"
-				id="name"
-				required
-				class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500"
-				placeholder="e.g. TTS Core"
-			/>
-		</div>
+	<h1 class="text-2xl font-bold tracking-tight text-foreground">Create a project</h1>
+	<p class="mt-1 text-sm text-muted-foreground">
+		Link a public GitHub repository to start tracking its issues and pull requests.
+	</p>
 
-		<div>
-			<label for="repoUrl" class="block text-sm font-medium text-gray-700">GitHub repo URL</label>
-			<input
-				type="url"
-				name="repoUrl"
-				id="repoUrl"
-				required
-				class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500"
-				placeholder="https://github.com/owner/repo"
-			/>
-		</div>
+	<form
+		method="POST"
+		use:enhance={() => {
+			creating = true;
+			return async ({ update }) => {
+				await update();
+				creating = false;
+			};
+		}}
+		class="mt-8"
+	>
+		<Field.Group>
+			<Field.Field>
+				<Field.Label for="name">Project name</Field.Label>
+				<Input
+					id="name"
+					name="name"
+					required
+					autocomplete="off"
+					placeholder="e.g. Core"
+					aria-describedby="name-hint"
+				/>
+				<Field.Description id="name-hint">
+					Only used inside this app. The repository keeps its own name.
+				</Field.Description>
+			</Field.Field>
+
+			<Field.Field>
+				<Field.Label for="repoUrl">GitHub repository</Field.Label>
+				<Input
+					id="repoUrl"
+					name="repoUrl"
+					type="url"
+					required
+					autocomplete="off"
+					spellcheck={false}
+					placeholder="https://github.com/owner/repo"
+					aria-describedby="repo-hint"
+				/>
+				<Field.Description id="repo-hint">
+					Public repositories only. Issues and pull requests are read with your GitHub access.
+				</Field.Description>
+			</Field.Field>
+		</Field.Group>
 
 		{#if form?.error}
-			<div class="rounded-md bg-red-50 p-3 text-sm text-red-700">{form.error}</div>
+			<div role="alert" class="mt-6 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+				{form.error}
+			</div>
 		{/if}
 
-		<div class="flex gap-4">
-			<a href="/inbox" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-				Cancel
-			</a>
-			<button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-				Create Project
-			</button>
+		<div class="mt-8 flex items-center gap-2">
+			<Button type="submit" disabled={creating}>
+				{creating ? 'Creating…' : 'Create project'}
+			</Button>
+			<a href="/inbox" class={buttonVariants({ variant: 'ghost' })}>Cancel</a>
 		</div>
 	</form>
 </div>
