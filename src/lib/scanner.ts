@@ -16,6 +16,7 @@ import {
 	fetchRepoIssues,
 	fetchRepoPullRequests,
 	fetchPullRequestReviews,
+	fetchLinkedPullRequestNumbers,
 	type GitHubIssue,
 	type GitHubPullRequest,
 	type GitHubReview
@@ -27,6 +28,8 @@ import {
 	evaluatePrApprovedNotMerged,
 	evaluateNoActivity,
 	evaluateStuckInColumn,
+	daysSince,
+	isIssueAssigned,
 	type ReminderCandidate
 } from './reminders';
 
@@ -35,6 +38,8 @@ export interface ScanResult {
 	remindersCreated: number;
 	remindersResolved: number;
 }
+
+const LINKED_PR_FETCH_CONCURRENCY = 5;
 
 export async function scanProject(db: D1Database, project: Project): Promise<ScanResult> {
 	const scanLog = await createScanLog(db, {
@@ -73,7 +78,37 @@ export async function scanProject(db: D1Database, project: Project): Promise<Sca
 		const configs = await getReminderConfigsByProject(db, project.id);
 		const enabledConfigs = configs.filter((c) => c.enabled === 1);
 
-		const linkedPrNumbers = new Set(prs.map((pr) => pr.number));
+		// Only issues that the rule would otherwise flag need their timeline read.
+		const linkedPrsByIssue = new Map<number, number[] | null>();
+		const assignedConfig = enabledConfigs.find((config) => config.type === 'assigned_not_started');
+
+		if (assignedConfig) {
+			const issuesToCheck = pureIssues.filter(
+				(issue) => isIssueAssigned(issue) && daysSince(issue.created_at) >= assignedConfig.threshold_days
+			);
+
+			for (let index = 0; index < issuesToCheck.length; index += LINKED_PR_FETCH_CONCURRENCY) {
+				const batch = issuesToCheck.slice(index, index + LINKED_PR_FETCH_CONCURRENCY);
+
+				await Promise.all(
+					batch.map(async (issue) => {
+						try {
+							const linked = await fetchLinkedPullRequestNumbers(
+								owner,
+								repo,
+								issue.number,
+								user.access_token
+							);
+							linkedPrsByIssue.set(issue.number, linked);
+						} catch {
+							// Leave the issue unresolved rather than flagging it
+							// just because one lookup failed.
+							linkedPrsByIssue.set(issue.number, null);
+						}
+					})
+				);
+			}
+		}
 
 		let itemsChecked = pureIssues.length + prs.length;
 		let remindersCreated = 0;
@@ -84,7 +119,7 @@ export async function scanProject(db: D1Database, project: Project): Promise<Sca
 
 			switch (config.type) {
 				case 'assigned_not_started':
-					candidates = evaluateAssignedNotStarted(pureIssues, config, linkedPrNumbers);
+					candidates = evaluateAssignedNotStarted(pureIssues, config, linkedPrsByIssue);
 					break;
 				case 'pr_open_too_long':
 					candidates = evaluatePrOpenTooLong(prs, config);
@@ -104,6 +139,14 @@ export async function scanProject(db: D1Database, project: Project): Promise<Sca
 			}
 
 			const stillMatches = new Set(candidates.map((candidate) => candidate.githubItemNumber));
+
+			if (config.type === 'assigned_not_started') {
+				// A failed timeline lookup leaves the issue's state unknown, so
+				// keep any existing reminder for it instead of resolving it.
+				for (const [issueNumber, linkedPrs] of linkedPrsByIssue) {
+					if (linkedPrs === null) stillMatches.add(issueNumber);
+				}
+			}
 
 			for (const candidate of candidates) {
 				const existing = await getReminderByItem(

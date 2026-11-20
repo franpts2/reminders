@@ -11,10 +11,14 @@ export interface ReminderCandidate {
 	message: string;
 }
 
-function daysSince(dateString: string): number {
+export function daysSince(dateString: string): number {
 	const then = new Date(dateString).getTime();
 	const now = Date.now();
 	return (now - then) / (1000 * 60 * 60 * 24);
+}
+
+export function isIssueAssigned(issue: GitHubIssue): boolean {
+	return Boolean(issue.assignee) || issue.assignees.length > 0;
 }
 
 function formatAssignee(issue: GitHubIssue | GitHubPullRequest): string | null {
@@ -27,19 +31,24 @@ function formatAssignee(issue: GitHubIssue | GitHubPullRequest): string | null {
 export function evaluateAssignedNotStarted(
 	issues: GitHubIssue[],
 	config: ReminderConfig,
-	linkedPrNumbers: Set<number>
+	linkedPrsByIssue: Map<number, number[] | null>
 ): ReminderCandidate[] {
 	const threshold = config.threshold_days;
 	const startedDefinition = config.started_definition || 'both';
 	const candidates: ReminderCandidate[] = [];
 
 	for (const issue of issues) {
-		if (!issue.assignee && (!issue.assignees || issue.assignees.length === 0)) continue;
+		if (!isIssueAssigned(issue)) continue;
 		if (daysSince(issue.created_at) < threshold) continue;
 
-		const hasLinkedPr = issue.pull_request || linkedPrNumbers.has(issue.number);
-		// For prototype, in-progress detection is simplified: we treat it as true only if a linked PR exists.
-		// The user can configure whether "started" means linked PR, in-progress column, or both.
+		const linkedPrs = linkedPrsByIssue.get(issue.number);
+		// The timeline lookup failed, so leave the issue alone instead of
+		// producing a reminder we cannot justify.
+		if (linkedPrs === null) continue;
+
+		const hasLinkedPr = Boolean(issue.pull_request) || (linkedPrs?.length ?? 0) > 0;
+		// Projects v2 column tracking is not wired up yet, so "in progress"
+		// still falls back to the linked PR signal.
 		const inProgress = hasLinkedPr;
 
 		let notStarted = false;
