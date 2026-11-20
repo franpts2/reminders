@@ -29,7 +29,7 @@
 
 	const pageTitle = $derived.by(() => {
 		const path = page.url.pathname;
-		if (path === '/dashboard') return 'Inbox';
+		if (path === '/inbox') return 'Inbox';
 		if (path === '/projects/new') return 'New project';
 		return activeProject?.name ?? '';
 	});

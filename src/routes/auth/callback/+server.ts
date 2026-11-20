@@ -59,5 +59,5 @@ export const GET: RequestHandler = async ({ url, cookies, platform }) => {
 		maxAge: 60 * 60 * 24 * 7
 	});
 
-	throw redirect(302, '/dashboard');
+	throw redirect(302, '/inbox');
 };
