@@ -1,6 +1,6 @@
 import { redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { getProjectsByUser, getOpenRemindersByProject } from '$lib/db';
+import { getProjectsByUser, getActiveRemindersByProject } from '$lib/db';
 
 export const load: PageServerLoad = async ({ locals, platform }) => {
 	if (!locals.user) {
@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 	const projects = await getProjectsByUser(env.DB, locals.user.id);
 	const projectsWithReminders = await Promise.all(
 		projects.map(async (project) => {
-			const reminders = await getOpenRemindersByProject(env.DB, project.id);
+			const reminders = await getActiveRemindersByProject(env.DB, project.id);
 			return { ...project, reminders };
 		})
 	);

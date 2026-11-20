@@ -30,6 +30,8 @@ export interface ReminderConfig {
 	updated_at: string;
 }
 
+export type ReminderStatus = 'open' | 'dismissed' | 'resolved';
+
 export interface Reminder {
 	id: string;
 	project_id: string;
@@ -40,9 +42,12 @@ export interface Reminder {
 	title: string;
 	assignee: string | null;
 	message: string;
-	status: string;
+	status: ReminderStatus;
 	created_at: string;
 	seen_at: string | null;
+	snoozed_until: string | null;
+	dismissed_at: string | null;
+	resolved_at: string | null;
 }
 
 export function generateId() {
@@ -201,36 +206,91 @@ export async function updateReminderConfig(
 		.run();
 }
 
-export async function getOpenRemindersByProject(
+/**
+ * Reminders a user can act on right now: open and not snoozed into the future.
+ */
+export async function getActiveRemindersByProject(
 	db: D1Database,
-	projectId: string
+	projectId: string,
+	now = new Date()
 ): Promise<Reminder[]> {
 	const { results } = await db
-		.prepare('SELECT * FROM reminders WHERE project_id = ? AND status = ? ORDER BY created_at DESC')
-		.bind(projectId, 'open')
+		.prepare(
+			`SELECT * FROM reminders
+			WHERE project_id = ? AND status = 'open'
+				AND (snoozed_until IS NULL OR snoozed_until <= ?)
+			ORDER BY created_at DESC`
+		)
+		.bind(projectId, now.toISOString())
 		.all<Reminder>();
 	return results || [];
 }
 
-export async function getRecentReminder(
+export async function getOpenRemindersByType(
+	db: D1Database,
+	projectId: string,
+	type: string
+): Promise<Reminder[]> {
+	const { results } = await db
+		.prepare(`SELECT * FROM reminders WHERE project_id = ? AND type = ? AND status = 'open'`)
+		.bind(projectId, type)
+		.all<Reminder>();
+	return results || [];
+}
+
+export async function getReminderById(db: D1Database, id: string): Promise<Reminder | null> {
+	const result = await db.prepare('SELECT * FROM reminders WHERE id = ?').bind(id).first<Reminder>();
+	return result || null;
+}
+
+export async function getReminderByItem(
 	db: D1Database,
 	projectId: string,
 	type: string,
-	githubItemNumber: number,
-	since: Date
+	githubItemNumber: number
 ): Promise<Reminder | null> {
 	const result = await db
-		.prepare(
-			'SELECT * FROM reminders WHERE project_id = ? AND type = ? AND github_item_number = ? AND created_at > ? ORDER BY created_at DESC LIMIT 1'
-		)
-		.bind(projectId, type, githubItemNumber, since.toISOString())
+		.prepare('SELECT * FROM reminders WHERE project_id = ? AND type = ? AND github_item_number = ?')
+		.bind(projectId, type, githubItemNumber)
 		.first<Reminder>();
+	return result || null;
+}
+
+export async function getUnreadReminderCount(
+	db: D1Database,
+	userId: string,
+	now = new Date()
+): Promise<number> {
+	const row = await db
+		.prepare(
+			`SELECT COUNT(*) AS count FROM reminders r
+			JOIN projects p ON p.id = r.project_id
+			WHERE p.created_by_user_id = ? AND r.status = 'open'
+				AND r.seen_at IS NULL
+				AND (r.snoozed_until IS NULL OR r.snoozed_until <= ?)`
+		)
+		.bind(userId, now.toISOString())
+		.first<{ count: number }>();
+	return row?.count ?? 0;
+}
+
+export async function getLatestScanByProject(
+	db: D1Database,
+	projectId: string
+): Promise<ScanLog | null> {
+	const result = await db
+		.prepare('SELECT * FROM scan_logs WHERE project_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1')
+		.bind(projectId)
+		.first<ScanLog>();
 	return result || null;
 }
 
 export async function createReminder(
 	db: D1Database,
-	reminder: Omit<Reminder, 'id' | 'created_at' | 'seen_at'>
+	reminder: Omit<
+		Reminder,
+		'id' | 'created_at' | 'seen_at' | 'snoozed_until' | 'dismissed_at' | 'resolved_at'
+	>
 ): Promise<Reminder> {
 	const id = generateId();
 	await db
@@ -250,19 +310,113 @@ export async function createReminder(
 			reminder.status
 		)
 		.run();
-	return { ...reminder, id, created_at: new Date().toISOString(), seen_at: null };
+	return {
+		...reminder,
+		id,
+		created_at: new Date().toISOString(),
+		seen_at: null,
+		snoozed_until: null,
+		dismissed_at: null,
+		resolved_at: null
+	};
 }
 
-export async function updateReminderStatus(
+export async function refreshReminder(
 	db: D1Database,
 	id: string,
-	status: string
+	updates: { github_url: string; title: string; assignee: string | null; message: string }
 ): Promise<void> {
-	const seenAt = status === 'open' ? null : new Date().toISOString();
 	await db
-		.prepare('UPDATE reminders SET status = ?, seen_at = ? WHERE id = ?')
-		.bind(status, seenAt, id)
+		.prepare('UPDATE reminders SET github_url = ?, title = ?, assignee = ?, message = ? WHERE id = ?')
+		.bind(updates.github_url, updates.title, updates.assignee, updates.message, id)
 		.run();
+}
+
+// D1 allows 100 bound parameters per query. Each batch spends one on
+// seen_at and one on the user id, so the remaining budget is the chunk size.
+const D1_MAX_BOUND_PARAMETERS = 100;
+const SEEN_BATCH_SIZE = D1_MAX_BOUND_PARAMETERS - 2;
+
+export async function markRemindersSeenForUser(
+	db: D1Database,
+	userId: string,
+	ids: string[],
+	now = new Date()
+): Promise<void> {
+	const uniqueIds = [...new Set(ids)];
+	if (uniqueIds.length === 0) return;
+
+	const seenAt = now.toISOString();
+
+	for (let start = 0; start < uniqueIds.length; start += SEEN_BATCH_SIZE) {
+		const batch = uniqueIds.slice(start, start + SEEN_BATCH_SIZE);
+		const placeholders = batch.map(() => '?').join(', ');
+
+		await db
+			.prepare(
+				`UPDATE reminders SET seen_at = ?
+				WHERE seen_at IS NULL AND id IN (${placeholders})
+					AND project_id IN (SELECT id FROM projects WHERE created_by_user_id = ?)`
+			)
+			.bind(seenAt, ...batch, userId)
+			.run();
+	}
+}
+
+export async function snoozeReminder(db: D1Database, id: string, until: Date): Promise<void> {
+	// Clear seen_at so the reminder comes back as unread when the snooze ends.
+	await db
+		.prepare('UPDATE reminders SET snoozed_until = ?, seen_at = NULL WHERE id = ?')
+		.bind(until.toISOString(), id)
+		.run();
+}
+
+export async function dismissReminder(db: D1Database, id: string, now = new Date()): Promise<void> {
+	await db
+		.prepare(`UPDATE reminders SET status = 'dismissed', dismissed_at = ?, snoozed_until = NULL WHERE id = ?`)
+		.bind(now.toISOString(), id)
+		.run();
+}
+
+export async function restoreReminder(db: D1Database, id: string): Promise<void> {
+	await db
+		.prepare(`UPDATE reminders SET status = 'open', dismissed_at = NULL, resolved_at = NULL WHERE id = ?`)
+		.bind(id)
+		.run();
+}
+
+export async function reopenReminder(db: D1Database, id: string): Promise<void> {
+	await db
+		.prepare(
+			`UPDATE reminders SET status = 'open', seen_at = NULL, snoozed_until = NULL,
+				dismissed_at = NULL, resolved_at = NULL
+			WHERE id = ?`
+		)
+		.bind(id)
+		.run();
+}
+
+export async function resolveReminder(db: D1Database, id: string, now = new Date()): Promise<void> {
+	await db
+		.prepare(`UPDATE reminders SET status = 'resolved', resolved_at = ? WHERE id = ?`)
+		.bind(now.toISOString(), id)
+		.run();
+}
+
+export async function resolveRemindersByType(
+	db: D1Database,
+	projectId: string,
+	type: string,
+	now = new Date()
+): Promise<number> {
+	const result = await db
+		.prepare(
+			`UPDATE reminders SET status = 'resolved', resolved_at = ?
+			WHERE project_id = ? AND type = ? AND status = 'open'`
+		)
+		.bind(now.toISOString(), projectId, type)
+		.run();
+	return result.meta.changes ?? 0;
 }
 
 export async function createScanLog(
@@ -272,9 +426,16 @@ export async function createScanLog(
 	const id = generateId();
 	await db
 		.prepare(
-			'INSERT INTO scan_logs (id, project_id, items_checked, reminders_created, error) VALUES (?, ?, ?, ?, ?)'
+			'INSERT INTO scan_logs (id, project_id, items_checked, reminders_created, reminders_resolved, error) VALUES (?, ?, ?, ?, ?, ?)'
 		)
-		.bind(id, scan.project_id, scan.items_checked, scan.reminders_created, scan.error || null)
+		.bind(
+			id,
+			scan.project_id,
+			scan.items_checked,
+			scan.reminders_created,
+			scan.reminders_resolved,
+			scan.error || null
+		)
 		.run();
 	return { ...scan, id, started_at: new Date().toISOString(), finished_at: null };
 }
@@ -282,15 +443,21 @@ export async function createScanLog(
 export async function finishScanLog(
 	db: D1Database,
 	id: string,
-	updates: { items_checked?: number; reminders_created?: number; error?: string | null }
+	updates: {
+		items_checked?: number;
+		reminders_created?: number;
+		reminders_resolved?: number;
+		error?: string | null;
+	}
 ): Promise<void> {
 	await db
 		.prepare(
-			'UPDATE scan_logs SET finished_at = CURRENT_TIMESTAMP, items_checked = ?, reminders_created = ?, error = ? WHERE id = ?'
+			'UPDATE scan_logs SET finished_at = CURRENT_TIMESTAMP, items_checked = ?, reminders_created = ?, reminders_resolved = ?, error = ? WHERE id = ?'
 		)
 		.bind(
 			updates.items_checked ?? 0,
 			updates.reminders_created ?? 0,
+			updates.reminders_resolved ?? 0,
 			updates.error || null,
 			id
 		)
@@ -304,5 +471,6 @@ export interface ScanLog {
 	finished_at: string | null;
 	items_checked: number;
 	reminders_created: number;
+	reminders_resolved: number;
 	error: string | null;
 }

@@ -13,9 +13,10 @@
 	interface Props {
 		user: App.Locals['user'];
 		projects: Array<{ id: string; name: string; owner: string; repo: string }>;
+		unreadCount: number;
 	}
 
-	let { user, projects }: Props = $props();
+	let { user, projects, unreadCount }: Props = $props();
 
 	const pathname = $derived(page.url.pathname);
 	const initials = $derived(user?.github_login.slice(0, 2).toUpperCase() ?? 'GH');
@@ -55,6 +56,9 @@
 							<a href="/dashboard" {...props}>
 								<InboxIcon />
 								<span>Inbox</span>
+								{#if unreadCount > 0}
+									<Sidebar.MenuBadge>{unreadCount}</Sidebar.MenuBadge>
+								{/if}
 							</a>
 						{/snippet}
 					</Sidebar.MenuButton>

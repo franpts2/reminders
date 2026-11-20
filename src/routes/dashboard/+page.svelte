@@ -1,9 +1,15 @@
 <script lang="ts">
+	import MarkSeen from '$lib/components/mark-seen.svelte';
+
 	interface Props {
 		data: { user: App.Locals['user']; projects: any[] };
 	}
 
 	let { data }: Props = $props();
+
+	const visibleIds = $derived(
+		data.projects.flatMap((project) => project.reminders.slice(0, 5).map((reminder: any) => reminder.id))
+	);
 
 	function reminderTypeLabel(type: string) {
 		const labels: Record<string, string> = {
@@ -19,6 +25,8 @@
 </script>
 
 <div class="space-y-8">
+	<MarkSeen ids={visibleIds} />
+
 	<div class="flex items-center justify-between">
 		<div>
 			<h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
