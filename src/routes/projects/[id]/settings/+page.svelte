@@ -208,9 +208,9 @@
 
 	<section class="mt-10 rounded-lg border border-destructive/30 p-5">
 		<div class="flex items-center justify-between gap-4">
-			<div class="min-w-0">
+			<div class="min-w-0 flex-1">
 				<h2 class="text-sm font-semibold text-destructive">Danger zone</h2>
-				<p class="mt-1 max-w-prose text-xs leading-5 text-muted-foreground">
+				<p class="mt-1 text-pretty text-xs leading-5 text-muted-foreground">
 					Deleting this project removes its reminders, rules and scan history. Nothing on GitHub is
 					changed.
 				</p>
