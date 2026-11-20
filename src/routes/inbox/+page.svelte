@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { replaceState } from '$app/navigation';
+	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import SearchXIcon from '@lucide/svelte/icons/search-x';
@@ -25,9 +27,13 @@
 
 	const DAY_MS = 24 * 60 * 60 * 1000;
 
-	let projectFilter = $state('all');
-	let typeFilter = $state('all');
-	let sortOrder = $state('oldest');
+	// The URL is the initial source of truth so reloads and shared links keep
+	// the filters; afterwards local state drives the list so it stays instant
+	// and the URL is mirrored with replaceState.
+	let projectFilter = $state(page.url.searchParams.get('project') ?? 'all');
+	let typeFilter = $state(page.url.searchParams.get('type') ?? 'all');
+	let sortOrder = $state(page.url.searchParams.get('sort') === 'newest' ? 'newest' : 'oldest');
+
 	let removed = $state<string[]>([]);
 	let activeId = $state<string | null>(null);
 
@@ -126,9 +132,31 @@
 
 	const seen = new SeenTracker();
 
+	function syncUrl() {
+		const params = new URLSearchParams();
+		if (projectFilter !== 'all') params.set('project', projectFilter);
+		if (typeFilter !== 'all') params.set('type', typeFilter);
+		if (sortOrder === 'newest') params.set('sort', 'newest');
+
+		const query = params.toString();
+		replaceState(`${page.url.pathname}${query ? `?${query}` : ''}`, page.state);
+	}
+
+	function setFilter(key: 'project' | 'type', value: string) {
+		if (key === 'project') projectFilter = value;
+		else typeFilter = value;
+		syncUrl();
+	}
+
+	function setSort(value: string) {
+		sortOrder = value;
+		syncUrl();
+	}
+
 	function clearFilters() {
 		projectFilter = 'all';
 		typeFilter = 'all';
+		syncUrl();
 	}
 
 	function focusRow(id: string) {
@@ -275,7 +303,12 @@
 		</span>
 
 		<div class="ml-auto flex flex-wrap items-center gap-1.5">
-			<Select.Root type="single" bind:value={sortOrder} items={sortItems}>
+			<Select.Root
+				type="single"
+				value={sortOrder}
+				items={sortItems}
+				onValueChange={(value) => setSort(value)}
+			>
 				<Select.Trigger size="sm" class="max-w-[150px] text-xs">
 					<Select.Value placeholder="Oldest first" />
 				</Select.Trigger>
@@ -285,7 +318,12 @@
 				</Select.Content>
 			</Select.Root>
 
-			<Select.Root type="single" bind:value={projectFilter} items={projectItems}>
+			<Select.Root
+				type="single"
+				value={projectFilter}
+				items={projectItems}
+				onValueChange={(value) => setFilter('project', value)}
+			>
 				<Select.Trigger size="sm" class="max-w-[180px] text-xs">
 					<Select.Value placeholder="All projects" />
 				</Select.Trigger>
@@ -297,7 +335,12 @@
 				</Select.Content>
 			</Select.Root>
 
-			<Select.Root type="single" bind:value={typeFilter} items={ruleItems}>
+			<Select.Root
+				type="single"
+				value={typeFilter}
+				items={ruleItems}
+				onValueChange={(value) => setFilter('type', value)}
+			>
 				<Select.Trigger size="sm" class="max-w-[180px] text-xs">
 					<Select.Value placeholder="All rules" />
 				</Select.Trigger>
