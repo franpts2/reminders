@@ -5,8 +5,6 @@ import {
 	getReminderConfigsByProject,
 	getActiveRemindersByProject,
 	getLatestScanByProject,
-	updateReminderConfig,
-	resolveRemindersByType,
 	REMINDER_TYPES
 } from '$lib/db';
 import { dismissForUser, restoreForUser, snoozeForUser, MAX_SNOOZE_DAYS } from '$lib/reminder-service';
@@ -43,38 +41,6 @@ export const load: PageServerLoad = async ({ params, locals, platform }) => {
 };
 
 export const actions: Actions = {
-	updateConfig: async ({ request, params, locals, platform }) => {
-		if (!locals.user) throw redirect(302, '/');
-		const env = (platform as App.Platform)?.env;
-		if (!env?.DB) throw error(500, 'Database not configured');
-
-		const project = await getProjectById(env.DB, params.id);
-		if (!project || project.created_by_user_id !== locals.user.id) throw error(404);
-
-		const formData = await request.formData();
-		const type = String(formData.get('type'));
-		const enabled = formData.has('enabled') ? 1 : 0;
-		const thresholdDays = parseInt(String(formData.get('threshold_days')), 10);
-		const startedDefinition = String(formData.get('started_definition') || '');
-
-		if (!type || isNaN(thresholdDays) || thresholdDays < 1) {
-			return fail(400, { error: 'Invalid configuration' });
-		}
-
-		await updateReminderConfig(env.DB, project.id, type, {
-			enabled,
-			threshold_days: thresholdDays,
-			started_definition: type === 'assigned_not_started' ? startedDefinition : null
-		});
-
-		// A disabled rule should not leave its reminders sitting in the inbox.
-		if (enabled === 0) {
-			await resolveRemindersByType(env.DB, project.id, type);
-		}
-
-		return { success: true };
-	},
-
 	snoozeReminder: async ({ request, locals, platform }) => {
 		if (!locals.user) throw redirect(302, '/');
 		const env = (platform as App.Platform)?.env;
