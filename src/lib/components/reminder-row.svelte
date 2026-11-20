@@ -2,6 +2,7 @@
 	import ArrowUpRightIcon from '@lucide/svelte/icons/arrow-up-right';
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import XIcon from '@lucide/svelte/icons/x';
+	import IconTooltip from '$lib/components/icon-tooltip.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
 	import type { InboxReminder } from '$lib/db';
@@ -70,42 +71,61 @@
 	</div>
 
 	<div class={cn('flex shrink-0 items-center gap-0.5', actionsVisibility)}>
-		<Button
-			variant="ghost"
-			size="icon"
-			class="size-7 text-muted-foreground"
-			aria-label="Dismiss reminder"
-			onclick={() => onDismiss(reminder.id)}
-		>
-			<XIcon class="size-4" />
-		</Button>
+		<IconTooltip label="Dismiss">
+			{#snippet children({ props })}
+				<Button
+					{...props}
+					variant="ghost"
+					size="icon"
+					class="size-7 text-muted-foreground"
+					aria-label="Dismiss reminder"
+					onclick={() => onDismiss(reminder.id)}
+				>
+					<XIcon class="size-4" />
+				</Button>
+			{/snippet}
+		</IconTooltip>
 
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger
-				class={buttonVariants({
-					variant: 'ghost',
-					size: 'icon',
-					class: 'size-7 text-muted-foreground'
-				})}
-				aria-label="Snooze reminder"
-			>
-				<ClockIcon class="size-4" />
-			</DropdownMenu.Trigger>
-			<DropdownMenu.Content align="end" class="w-40">
-				<DropdownMenu.Item onSelect={() => onSnooze(reminder.id, 1)}>For 1 day</DropdownMenu.Item>
-				<DropdownMenu.Item onSelect={() => onSnooze(reminder.id, 3)}>For 3 days</DropdownMenu.Item>
-				<DropdownMenu.Item onSelect={() => onSnooze(reminder.id, 7)}>For 1 week</DropdownMenu.Item>
-			</DropdownMenu.Content>
-		</DropdownMenu.Root>
+		<IconTooltip label="Snooze">
+			{#snippet children({ props })}
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger
+						{...props}
+						class={buttonVariants({
+							variant: 'ghost',
+							size: 'icon',
+							class: 'size-7 text-muted-foreground'
+						})}
+						aria-label="Snooze reminder"
+					>
+						<ClockIcon class="size-4" />
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content align="end" class="w-40">
+						<DropdownMenu.Item onSelect={() => onSnooze(reminder.id, 1)}>For 1 day</DropdownMenu.Item>
+						<DropdownMenu.Item onSelect={() => onSnooze(reminder.id, 3)}>For 3 days</DropdownMenu.Item>
+						<DropdownMenu.Item onSelect={() => onSnooze(reminder.id, 7)}>For 1 week</DropdownMenu.Item>
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
+			{/snippet}
+		</IconTooltip>
 
-		<a
-			href={reminder.github_url}
-			target="_blank"
-			rel="noopener noreferrer"
-			class={buttonVariants({ variant: 'ghost', size: 'icon', class: 'size-7 text-muted-foreground' })}
-			aria-label="Open on GitHub"
-		>
-			<ArrowUpRightIcon class="size-4" />
-		</a>
+		<IconTooltip label="Open on GitHub">
+			{#snippet children({ props })}
+				<a
+					{...props}
+					href={reminder.github_url}
+					target="_blank"
+					rel="noopener noreferrer"
+					class={buttonVariants({
+						variant: 'ghost',
+						size: 'icon',
+						class: 'size-7 text-muted-foreground'
+					})}
+					aria-label="Open on GitHub"
+				>
+					<ArrowUpRightIcon class="size-4" />
+				</a>
+			{/snippet}
+		</IconTooltip>
 	</div>
 </li>
