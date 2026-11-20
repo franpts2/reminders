@@ -1,9 +1,9 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import SearchXIcon from '@lucide/svelte/icons/search-x';
 	import { toast } from 'svelte-sonner';
-	import MarkSeen from '$lib/components/mark-seen.svelte';
 	import ReminderRow from '$lib/components/reminder-row.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
@@ -34,6 +34,16 @@
 	const reminders = $derived(data.reminders);
 	const shortLabels = $derived(new Map(data.reminderTypes.map((type) => [type.key, type.short_label])));
 	const filtersActive = $derived(projectFilter !== 'all' || typeFilter !== 'all');
+
+	// A reminder is "new" when it first appeared in the most recent scan;
+	// carried-over reminders were refreshed, so only their age changed.
+	const latestScanAt = $derived(
+		data.latestScan ? parseTimestamp(data.latestScan.started_at) : 0
+	);
+
+	function isFromLatestScan(reminder: InboxReminder) {
+		return latestScanAt > 0 && parseTimestamp(reminder.created_at) >= latestScanAt;
+	}
 
 	const projectOptions = $derived.by(() => {
 		const projects = new Map<string, string>();
@@ -113,6 +123,38 @@
 	});
 
 	const flat = $derived(groups.flatMap((group) => group.items));
+
+	let seenLocally = $state<string[]>([]);
+	const pendingSeen = new Set<string>();
+	let seenFlushTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function markSeen(id: string) {
+		if (seenLocally.includes(id) || pendingSeen.has(id)) return;
+		pendingSeen.add(id);
+
+		if (seenFlushTimer) clearTimeout(seenFlushTimer);
+		seenFlushTimer = setTimeout(flushSeen, 600);
+	}
+
+	async function flushSeen() {
+		seenFlushTimer = undefined;
+
+		const ids = [...pendingSeen];
+		pendingSeen.clear();
+		if (ids.length === 0) return;
+
+		seenLocally = [...seenLocally, ...ids];
+
+		const response = await fetch('/api/reminders/seen', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ ids })
+		});
+
+		if (response.ok) {
+			await invalidateAll();
+		}
+	}
 
 	function clearFilters() {
 		projectFilter = 'all';
@@ -234,9 +276,13 @@
 		window.addEventListener('keydown', onKeydown);
 		return () => window.removeEventListener('keydown', onKeydown);
 	});
-</script>
 
-<MarkSeen ids={reminders.map((reminder) => reminder.id)} />
+	onMount(() => {
+		return () => {
+			if (seenFlushTimer) clearTimeout(seenFlushTimer);
+		};
+	});
+</script>
 
 <div class="flex flex-col">
 	<div
@@ -248,6 +294,17 @@
 				<span class="text-muted-foreground/70">of {reminders.length}</span>
 			{/if}
 		</p>
+
+		<span class="hidden items-center gap-3 text-[11px] text-muted-foreground sm:flex">
+			<span class="flex items-center gap-1.5">
+				<span class="h-2 w-[3px] rounded-full bg-primary" aria-hidden="true"></span>
+				new
+			</span>
+			<span class="flex items-center gap-1.5">
+				<span class="h-2 w-[3px] rounded-full bg-muted-foreground/25" aria-hidden="true"></span>
+				carried over
+			</span>
+		</span>
 
 		<div class="ml-auto flex flex-wrap items-center gap-1.5">
 			<Select.Root type="single" bind:value={sortOrder} items={sortItems}>
@@ -345,8 +402,11 @@
 								{reminder}
 								typeLabel={shortLabels.get(reminder.type) ?? reminder.type}
 								active={activeId === reminder.id}
+								unread={reminder.seen_at === null && !seenLocally.includes(reminder.id)}
+								isNew={isFromLatestScan(reminder)}
 								onDismiss={dismiss}
 								onSnooze={snooze}
+								onSeen={markSeen}
 							/>
 						{/each}
 					</ul>

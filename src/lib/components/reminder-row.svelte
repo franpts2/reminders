@@ -1,6 +1,8 @@
 <script lang="ts">
 	import ArrowUpRightIcon from '@lucide/svelte/icons/arrow-up-right';
+	import CircleDotIcon from '@lucide/svelte/icons/circle-dot';
 	import ClockIcon from '@lucide/svelte/icons/clock';
+	import GitPullRequestIcon from '@lucide/svelte/icons/git-pull-request';
 	import XIcon from '@lucide/svelte/icons/x';
 	import IconTooltip from '$lib/components/icon-tooltip.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
@@ -13,11 +15,23 @@
 		reminder: InboxReminder;
 		typeLabel: string;
 		active?: boolean;
+		unread?: boolean;
+		isNew?: boolean;
 		onDismiss: (id: string) => void;
 		onSnooze: (id: string, days: number) => void;
+		onSeen?: (id: string) => void;
 	}
 
-	let { reminder, typeLabel, active = false, onDismiss, onSnooze }: Props = $props();
+	let {
+		reminder,
+		typeLabel,
+		active = false,
+		unread = false,
+		isNew = false,
+		onDismiss,
+		onSnooze,
+		onSeen
+	}: Props = $props();
 
 	const isPr = $derived(reminder.github_item_type === 'pr');
 	const reference = $derived(
@@ -25,9 +39,38 @@
 	);
 	const actionsVisibility =
 		'transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100';
+
+	// A row counts as read once it has actually been on screen, not the moment
+	// the inbox opens, so the unread bar means something.
+	let rowElement: HTMLLIElement;
+	let visibilityTimer: ReturnType<typeof setTimeout> | undefined;
+
+	$effect(() => {
+		if (!rowElement || !unread || !onSeen) return;
+
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry.isIntersecting) {
+					visibilityTimer = setTimeout(() => onSeen(reminder.id), 1200);
+				} else if (visibilityTimer) {
+					clearTimeout(visibilityTimer);
+					visibilityTimer = undefined;
+				}
+			},
+			{ threshold: 0.6 }
+		);
+
+		observer.observe(rowElement);
+
+		return () => {
+			observer.disconnect();
+			if (visibilityTimer) clearTimeout(visibilityTimer);
+		};
+	});
 </script>
 
 <li
+	bind:this={rowElement}
 	id="reminder-{reminder.id}"
 	tabindex="-1"
 	data-active={active}
@@ -38,25 +81,34 @@
 >
 	<span
 		class={cn(
-			'mt-1 h-4 w-[3px] shrink-0 rounded-full',
-			isPr ? 'bg-primary' : 'bg-muted-foreground/40'
+			'mt-1 h-4 w-[3px] shrink-0 rounded-full transition-colors duration-500',
+			isNew ? 'bg-primary' : 'bg-muted-foreground/25'
 		)}
 		aria-hidden="true"
 	></span>
 
 	<div class="min-w-0 flex-1">
-		<a
-			href={reminder.github_url}
-			target="_blank"
-			rel="noopener noreferrer"
-			title={reminder.message}
-			class="block truncate text-sm font-medium text-foreground hover:underline"
-		>
-			{reminder.title}
-		</a>
+		<div class="flex min-w-0 items-center gap-1.5">
+			{#if isPr}
+				<GitPullRequestIcon class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+			{:else}
+				<CircleDotIcon class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+			{/if}
+			<a
+				href={reminder.github_url}
+				target="_blank"
+				rel="noopener noreferrer"
+				title={reminder.message}
+				class="truncate text-sm font-medium text-foreground hover:underline"
+			>
+				{reminder.title}
+			</a>
+		</div>
 
 		<div class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
 			<span class="font-mono">{reference}</span>
+			<span aria-hidden="true">·</span>
+			<span>{isPr ? 'PR' : 'Issue'}</span>
 			<span aria-hidden="true">·</span>
 			<span>{typeLabel}</span>
 			{#if reminder.assignee}
