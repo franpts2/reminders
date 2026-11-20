@@ -52,6 +52,18 @@
 		return [...types].map(([value, label]) => ({ value, label }));
 	});
 
+	// Supplying the pairs to the root lets the trigger resolve a label even
+	// before its items have ever been mounted.
+	const projectItems = $derived([
+		{ value: 'all', label: 'All projects' },
+		...projectOptions.map((project) => ({ value: project.id, label: project.name }))
+	]);
+
+	const ruleItems = $derived([
+		{ value: 'all', label: 'All rules' },
+		...typeOptions.map((type) => ({ value: type.value, label: type.label }))
+	]);
+
 	const filtered = $derived(
 		reminders.filter(
 			(reminder) =>
@@ -221,26 +233,26 @@
 		</p>
 
 		<div class="ml-auto flex flex-wrap items-center gap-1.5">
-			<Select.Root type="single" bind:value={projectFilter}>
+			<Select.Root type="single" bind:value={projectFilter} items={projectItems}>
 				<Select.Trigger size="sm" class="max-w-[180px] text-xs">
 					<Select.Value placeholder="All projects" />
 				</Select.Trigger>
 				<Select.Content>
-					<Select.Item value="all">All projects</Select.Item>
+					<Select.Item value="all" label="All projects">All projects</Select.Item>
 					{#each projectOptions as project (project.id)}
-						<Select.Item value={project.id}>{project.name}</Select.Item>
+						<Select.Item value={project.id} label={project.name}>{project.name}</Select.Item>
 					{/each}
 				</Select.Content>
 			</Select.Root>
 
-			<Select.Root type="single" bind:value={typeFilter}>
+			<Select.Root type="single" bind:value={typeFilter} items={ruleItems}>
 				<Select.Trigger size="sm" class="max-w-[180px] text-xs">
 					<Select.Value placeholder="All rules" />
 				</Select.Trigger>
 				<Select.Content>
-					<Select.Item value="all">All rules</Select.Item>
+					<Select.Item value="all" label="All rules">All rules</Select.Item>
 					{#each typeOptions as type (type.value)}
-						<Select.Item value={type.value}>{type.label}</Select.Item>
+						<Select.Item value={type.value} label={type.label}>{type.label}</Select.Item>
 					{/each}
 				</Select.Content>
 			</Select.Root>
