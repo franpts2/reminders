@@ -91,8 +91,10 @@
 		<div class="flex min-w-0 items-center gap-1.5">
 			{#if isPr}
 				<GitPullRequestIcon class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+				<span class="sr-only">Pull request</span>
 			{:else}
 				<CircleDotIcon class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+				<span class="sr-only">Issue</span>
 			{/if}
 			<a
 				href={reminder.github_url}
@@ -107,8 +109,6 @@
 
 		<div class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
 			<span class="font-mono">{reference}</span>
-			<span aria-hidden="true">·</span>
-			<span>{isPr ? 'PR' : 'Issue'}</span>
 			<span aria-hidden="true">·</span>
 			<span>{typeLabel}</span>
 			{#if reminder.assignee}
