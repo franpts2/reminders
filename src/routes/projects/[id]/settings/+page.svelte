@@ -101,67 +101,65 @@
 						{@const config = configFor(typeKey)}
 						{@const openNow = data.counts[typeKey] ?? 0}
 						{@const unavailable = typeKey === 'stuck_in_column'}
-						<div
-							id="rule-{typeKey}"
-							class="flex flex-col gap-4 p-4 transition-colors sm:flex-row sm:items-start sm:justify-between"
-						>
-							<div class="min-w-0 flex-1">
-								<div class="flex flex-wrap items-center gap-2">
-									<h3 class="text-sm font-medium text-foreground">{type.label}</h3>
-									{#if unavailable}
-										<Badge variant="secondary">Not available yet</Badge>
-									{:else if openNow > 0}
-										<span class="text-xs text-muted-foreground tabular-nums">
-											{openNow} open now
-										</span>
-									{/if}
-								</div>
-								<p class="mt-1 max-w-prose text-xs leading-5 text-muted-foreground">
+						<div id="rule-{typeKey}" class="p-4 transition-colors">
+							<div class="flex flex-wrap items-center gap-2">
+								<h3 class="text-sm font-medium text-foreground">{type.label}</h3>
+								{#if unavailable}
+									<Badge variant="secondary">Not available yet</Badge>
+								{:else if openNow > 0}
+									<span class="text-xs text-muted-foreground tabular-nums">
+										{openNow} open now
+									</span>
+								{/if}
+							</div>
+
+							<div class="mt-1 flex items-start justify-between gap-4">
+								<p class="max-w-prose text-xs leading-5 text-muted-foreground">
 									{type.description}
 								</p>
 
-								<div class="mt-3 flex flex-wrap items-center gap-2">
-									<Label for="threshold_{typeKey}" class="text-xs text-muted-foreground">
-										Alert after
-									</Label>
-									<Input
-										id="threshold_{typeKey}"
-										name="threshold_{typeKey}"
-										type="number"
-										min="1"
-										max="365"
-										required
-										readonly={unavailable}
-										class={unavailable ? 'h-8 w-20 text-sm opacity-60' : 'h-8 w-20 text-sm'}
-										value={config.threshold_days}
+								<div class="flex shrink-0 items-center">
+									<Label for={typeKey} class="sr-only">Enable {type.label}</Label>
+									<Switch
+										id={typeKey}
+										name="enabled_{typeKey}"
+										checked={config.enabled === 1}
+										disabled={unavailable}
+										aria-label="Enable {type.label}"
 									/>
-									<span class="text-xs text-muted-foreground">days</span>
-
-									{#if typeKey === 'assigned_not_started'}
-										<span class="ml-1 text-xs text-muted-foreground">· counts as started when</span>
-										<select
-											name="started_{typeKey}"
-											value={config.started_definition || 'both'}
-											class="h-8 rounded-md border border-input bg-background px-2 text-xs focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
-											aria-label="What counts as started"
-										>
-											<option value="linked_pr">a PR is linked</option>
-											<option value="in_progress_column">it moves to In Progress</option>
-											<option value="both">both</option>
-										</select>
-									{/if}
 								</div>
 							</div>
 
-							<div class="flex shrink-0 items-center gap-2 sm:pt-0.5">
-								<Label for={typeKey} class="sr-only">Enable {type.label}</Label>
-								<Switch
-									id={typeKey}
-									name="enabled_{typeKey}"
-									checked={config.enabled === 1}
-									disabled={unavailable}
-									aria-label="Enable {type.label}"
+							<div class="mt-3 flex flex-wrap items-center gap-2">
+								<Label for="threshold_{typeKey}" class="text-xs text-muted-foreground">
+									Alert after
+								</Label>
+								<Input
+									id="threshold_{typeKey}"
+									name="threshold_{typeKey}"
+									type="number"
+									min="1"
+									max="365"
+									required
+									readonly={unavailable}
+									class={unavailable ? 'h-8 w-20 text-sm opacity-60' : 'h-8 w-20 text-sm'}
+									value={config.threshold_days}
 								/>
+								<span class="text-xs text-muted-foreground">days</span>
+
+								{#if typeKey === 'assigned_not_started'}
+									<span class="ml-1 text-xs text-muted-foreground">· counts as started when</span>
+									<select
+										name="started_{typeKey}"
+										value={config.started_definition || 'both'}
+										class="h-8 rounded-md border border-input bg-background px-2 text-xs focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
+										aria-label="What counts as started"
+									>
+										<option value="linked_pr">a PR is linked</option>
+										<option value="in_progress_column">it moves to In Progress</option>
+										<option value="both">both</option>
+									</select>
+								{/if}
 							</div>
 						</div>
 					{/each}
@@ -210,40 +208,39 @@
 
 	<section class="mt-10 rounded-lg border border-destructive/30 p-5">
 		<h2 class="text-sm font-semibold text-destructive">Danger zone</h2>
-		<p class="mt-1 max-w-prose text-xs leading-5 text-muted-foreground">
-			Deleting this project removes its reminders, rules and scan history. Nothing on GitHub is
-			changed.
-		</p>
+		<div class="mt-1 flex items-center justify-between gap-4">
+			<p class="max-w-prose text-xs leading-5 text-muted-foreground">
+				Deleting this project removes its reminders, rules and scan history. Nothing on GitHub is
+				changed.
+			</p>
 
-		<AlertDialog.Root>
-			<AlertDialog.Trigger
-				class={buttonVariants({
-					variant: 'outline',
-					size: 'sm',
-					class: 'mt-3 text-destructive hover:text-destructive'
-				})}
-			>
-				Delete project
-			</AlertDialog.Trigger>
-			<AlertDialog.Content>
-				<AlertDialog.Header>
-					<AlertDialog.Title>Delete {data.project.name}?</AlertDialog.Title>
-					<AlertDialog.Description>
-						This deletes {data.project.owner}/{data.project.repo} from your inbox, along with every
-						reminder and scan record. It cannot be undone.
-					</AlertDialog.Description>
-				</AlertDialog.Header>
-				<AlertDialog.Footer>
-					<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-					<AlertDialog.Action
-						variant="destructive"
-						onclick={() => deleteForm?.requestSubmit()}
-					>
-						Delete project
-					</AlertDialog.Action>
-				</AlertDialog.Footer>
-			</AlertDialog.Content>
-		</AlertDialog.Root>
+			<AlertDialog.Root>
+				<AlertDialog.Trigger
+					class={buttonVariants({
+						variant: 'outline',
+						size: 'sm',
+						class: 'shrink-0 text-destructive hover:text-destructive'
+					})}
+				>
+					Delete project
+				</AlertDialog.Trigger>
+				<AlertDialog.Content>
+					<AlertDialog.Header>
+						<AlertDialog.Title>Delete {data.project.name}?</AlertDialog.Title>
+						<AlertDialog.Description>
+							This deletes {data.project.owner}/{data.project.repo} from your inbox, along with every
+							reminder and scan record. It cannot be undone.
+						</AlertDialog.Description>
+					</AlertDialog.Header>
+					<AlertDialog.Footer>
+						<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+						<AlertDialog.Action variant="destructive" onclick={() => deleteForm?.requestSubmit()}>
+							Delete project
+						</AlertDialog.Action>
+					</AlertDialog.Footer>
+				</AlertDialog.Content>
+			</AlertDialog.Root>
+		</div>
 
 		<form bind:this={deleteForm} method="POST" action="?/delete" use:enhance class="hidden"></form>
 	</section>
