@@ -50,6 +50,12 @@ export interface Reminder {
 	resolved_at: string | null;
 }
 
+export interface InboxReminder extends Reminder {
+	project_name: string;
+	project_owner: string;
+	project_repo: string;
+}
+
 export function generateId() {
 	return crypto.randomUUID();
 }
@@ -124,31 +130,37 @@ export const REMINDER_TYPES = [
 	{
 		key: 'assigned_not_started',
 		label: 'Assigned but not started',
+		short_label: 'Not started',
 		description: 'Issue assigned to someone but with no linked PR and/or not moved to In Progress.'
 	},
 	{
 		key: 'pr_open_too_long',
 		label: 'PR open too long',
+		short_label: 'Open too long',
 		description: 'A pull request has been open for longer than the threshold.'
 	},
 	{
 		key: 'pr_no_review',
 		label: 'PR with no review',
+		short_label: 'No review',
 		description: 'A pull request has been open with no review for longer than the threshold.'
 	},
 	{
 		key: 'pr_approved_not_merged',
 		label: 'Approved but not merged',
+		short_label: 'Approved, unmerged',
 		description: 'A pull request has been approved but not merged for longer than the threshold.'
 	},
 	{
 		key: 'stuck_in_column',
 		label: 'Stuck in project column',
+		short_label: 'Stuck',
 		description: 'An issue or PR has been in the same project board column for longer than the threshold.'
 	},
 	{
 		key: 'no_activity',
 		label: 'No activity',
+		short_label: 'No activity',
 		description: 'An issue or PR has had no activity for longer than the threshold.'
 	}
 ];
@@ -226,6 +238,25 @@ export async function getActiveRemindersByProject(
 	return results || [];
 }
 
+export async function getInboxReminders(
+	db: D1Database,
+	userId: string,
+	now = new Date()
+): Promise<InboxReminder[]> {
+	const { results } = await db
+		.prepare(
+			`SELECT r.*, p.name AS project_name, p.owner AS project_owner, p.repo AS project_repo
+			FROM reminders r
+			JOIN projects p ON p.id = r.project_id
+			WHERE p.created_by_user_id = ? AND r.status = 'open'
+				AND (r.snoozed_until IS NULL OR r.snoozed_until <= ?)
+			ORDER BY r.created_at ASC`
+		)
+		.bind(userId, now.toISOString())
+		.all<InboxReminder>();
+	return results || [];
+}
+
 export async function getOpenRemindersByType(
 	db: D1Database,
 	projectId: string,
@@ -238,8 +269,44 @@ export async function getOpenRemindersByType(
 	return results || [];
 }
 
+export async function getLatestScanForUser(
+	db: D1Database,
+	userId: string
+): Promise<ScanLog | null> {
+	const result = await db
+		.prepare(
+			`SELECT s.* FROM scan_logs s
+			JOIN projects p ON p.id = s.project_id
+			WHERE p.created_by_user_id = ?
+			ORDER BY s.started_at DESC, s.rowid DESC
+			LIMIT 1`
+		)
+		.bind(userId)
+		.first<ScanLog>();
+	return result || null;
+}
+
 export async function getReminderById(db: D1Database, id: string): Promise<Reminder | null> {
 	const result = await db.prepare('SELECT * FROM reminders WHERE id = ?').bind(id).first<Reminder>();
+	return result || null;
+}
+
+/**
+ * Returns the reminder only if it belongs to a project owned by the user.
+ */
+export async function getOwnedReminder(
+	db: D1Database,
+	userId: string,
+	id: string
+): Promise<Reminder | null> {
+	const result = await db
+		.prepare(
+			`SELECT r.* FROM reminders r
+			JOIN projects p ON p.id = r.project_id
+			WHERE r.id = ? AND p.created_by_user_id = ?`
+		)
+		.bind(id, userId)
+		.first<Reminder>();
 	return result || null;
 }
 
@@ -380,7 +447,11 @@ export async function dismissReminder(db: D1Database, id: string, now = new Date
 
 export async function restoreReminder(db: D1Database, id: string): Promise<void> {
 	await db
-		.prepare(`UPDATE reminders SET status = 'open', dismissed_at = NULL, resolved_at = NULL WHERE id = ?`)
+		.prepare(
+			`UPDATE reminders SET status = 'open', dismissed_at = NULL, resolved_at = NULL,
+				snoozed_until = NULL
+			WHERE id = ?`
+		)
 		.bind(id)
 		.run();
 }

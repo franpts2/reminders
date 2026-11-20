@@ -21,7 +21,7 @@ export async function submitAction(
 		headers: { accept: 'application/json' }
 	});
 
-	const result: ActionResult = deserialize(await response.json());
+	const result: ActionResult = deserialize(await response.text());
 
 	if (result.type === 'success') {
 		await invalidateAll();

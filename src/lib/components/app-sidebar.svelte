@@ -30,7 +30,7 @@
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton size="lg">
 					{#snippet child({ props })}
-						<a href="/dashboard" {...props}>
+						<a href="/inbox" {...props}>
 							<div
 								class="flex aspect-square size-8 items-center justify-center rounded-md bg-primary text-primary-foreground"
 							>
@@ -51,9 +51,9 @@
 		<Sidebar.Group>
 			<Sidebar.Menu>
 				<Sidebar.MenuItem>
-					<Sidebar.MenuButton isActive={pathname === '/dashboard'} tooltipContent="Inbox">
+					<Sidebar.MenuButton isActive={pathname === '/inbox'} tooltipContent="Inbox">
 						{#snippet child({ props })}
-							<a href="/dashboard" {...props}>
+							<a href="/inbox" {...props}>
 								<InboxIcon />
 								<span>Inbox</span>
 								{#if unreadCount > 0}

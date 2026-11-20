@@ -40,7 +40,7 @@
 		{/if}
 
 		<div class="flex gap-4">
-			<a href="/dashboard" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+			<a href="/inbox" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
 				Cancel
 			</a>
 			<button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
