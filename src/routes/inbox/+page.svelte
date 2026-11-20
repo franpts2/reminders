@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import SearchXIcon from '@lucide/svelte/icons/search-x';
@@ -11,6 +10,7 @@
 	import * as Select from '$lib/components/ui/select/index.js';
 	import type { InboxReminder } from '$lib/db';
 	import { submitAction } from '$lib/forms';
+	import { SeenTracker } from '$lib/seen-tracker.svelte';
 	import { parseTimestamp, timeAgo } from '$lib/time';
 
 	interface Props {
@@ -124,37 +124,7 @@
 
 	const flat = $derived(groups.flatMap((group) => group.items));
 
-	let seenLocally = $state<string[]>([]);
-	const pendingSeen = new Set<string>();
-	let seenFlushTimer: ReturnType<typeof setTimeout> | undefined;
-
-	function markSeen(id: string) {
-		if (seenLocally.includes(id) || pendingSeen.has(id)) return;
-		pendingSeen.add(id);
-
-		if (seenFlushTimer) clearTimeout(seenFlushTimer);
-		seenFlushTimer = setTimeout(flushSeen, 600);
-	}
-
-	async function flushSeen() {
-		seenFlushTimer = undefined;
-
-		const ids = [...pendingSeen];
-		pendingSeen.clear();
-		if (ids.length === 0) return;
-
-		seenLocally = [...seenLocally, ...ids];
-
-		const response = await fetch('/api/reminders/seen', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ ids })
-		});
-
-		if (response.ok) {
-			await invalidateAll();
-		}
-	}
+	const seen = new SeenTracker();
 
 	function clearFilters() {
 		projectFilter = 'all';
@@ -278,9 +248,7 @@
 	});
 
 	onMount(() => {
-		return () => {
-			if (seenFlushTimer) clearTimeout(seenFlushTimer);
-		};
+		return () => seen.dispose();
 	});
 </script>
 
@@ -398,8 +366,7 @@
 					</h2>
 					<ul>
 						{#each group.items as reminder (reminder.id)}
-							{@const unread =
-								reminder.seen_at === null && !seenLocally.includes(reminder.id)}
+							{@const unread = seen.isUnread(reminder)}
 							<ReminderRow
 								{reminder}
 								typeLabel={shortLabels.get(reminder.type) ?? reminder.type}
@@ -408,7 +375,7 @@
 								isNew={unread || isFromLatestScan(reminder)}
 								onDismiss={dismiss}
 								onSnooze={snooze}
-								onSeen={markSeen}
+								onSeen={seen.mark}
 							/>
 						{/each}
 					</ul>
