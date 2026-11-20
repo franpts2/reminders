@@ -1,0 +1,142 @@
+import type { D1Database } from '@cloudflare/workers-types';
+import {
+	getProjectsByUser,
+	getReminderConfigsByProject,
+	getRecentReminder,
+	createReminder,
+	createScanLog,
+	finishScanLog,
+	getUserById,
+	type Project
+} from './db';
+import {
+	fetchRepoIssues,
+	fetchRepoPullRequests,
+	fetchPullRequestReviews,
+	type GitHubIssue,
+	type GitHubPullRequest,
+	type GitHubReview
+} from './github';
+import {
+	evaluateAssignedNotStarted,
+	evaluatePrOpenTooLong,
+	evaluatePrNoReview,
+	evaluatePrApprovedNotMerged,
+	evaluateNoActivity,
+	evaluateStuckInColumn,
+	type ReminderCandidate
+} from './reminders';
+
+const DEDUPLICATION_WINDOW_DAYS = 3;
+
+export async function scanProject(db: D1Database, project: Project): Promise<void> {
+	const scanLog = await createScanLog(db, {
+		project_id: project.id,
+		items_checked: 0,
+		reminders_created: 0,
+		error: null
+	});
+
+	try {
+		const owner = project.owner;
+		const repo = project.repo;
+
+		const user = await getUserById(db, project.created_by_user_id);
+		if (!user) {
+			throw new Error('Project owner user not found');
+		}
+
+		const [issues, prs] = await Promise.all([
+			fetchRepoIssues(owner, repo, user.access_token),
+			fetchRepoPullRequests(owner, repo, user.access_token)
+		]);
+
+		// Filter out pull requests from the issues list (GitHub API returns PRs as issues too)
+		const pureIssues = issues.filter((i) => !i.pull_request);
+
+		const reviewsMap = new Map<number, GitHubReview[]>();
+		await Promise.all(
+			prs.map(async (pr) => {
+				const reviews = await fetchPullRequestReviews(owner, repo, pr.number, user.access_token);
+				reviewsMap.set(pr.number, reviews);
+			})
+		);
+
+		const configs = await getReminderConfigsByProject(db, project.id);
+		const enabledConfigs = configs.filter((c) => c.enabled === 1);
+
+		const linkedPrNumbers = new Set(prs.map((pr) => pr.number));
+
+		let itemsChecked = pureIssues.length + prs.length;
+		let remindersCreated = 0;
+
+		for (const config of enabledConfigs) {
+			let candidates: ReminderCandidate[] = [];
+
+			switch (config.type) {
+				case 'assigned_not_started':
+					candidates = evaluateAssignedNotStarted(pureIssues, config, linkedPrNumbers);
+					break;
+				case 'pr_open_too_long':
+					candidates = evaluatePrOpenTooLong(prs, config);
+					break;
+				case 'pr_no_review':
+					candidates = evaluatePrNoReview(prs, reviewsMap, config);
+					break;
+				case 'pr_approved_not_merged':
+					candidates = evaluatePrApprovedNotMerged(prs, reviewsMap, config);
+					break;
+				case 'no_activity':
+					candidates = evaluateNoActivity([...pureIssues, ...prs], config);
+					break;
+				case 'stuck_in_column':
+					candidates = evaluateStuckInColumn([...pureIssues, ...prs], config);
+					break;
+			}
+
+			for (const candidate of candidates) {
+				const since = new Date(Date.now() - DEDUPLICATION_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+				const existing = await getRecentReminder(
+					db,
+					project.id,
+					candidate.type,
+					candidate.githubItemNumber,
+					since
+				);
+
+				if (!existing) {
+					await createReminder(db, {
+						project_id: project.id,
+						type: candidate.type,
+						github_item_number: candidate.githubItemNumber,
+						github_item_type: candidate.githubItemType,
+						github_url: candidate.githubUrl,
+						title: candidate.title,
+						assignee: candidate.assignee,
+						message: candidate.message,
+						status: 'open'
+					});
+					remindersCreated++;
+				}
+			}
+		}
+
+		await finishScanLog(db, scanLog.id, { items_checked: itemsChecked, reminders_created: remindersCreated });
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		await finishScanLog(db, scanLog.id, { error: message });
+		throw error;
+	}
+}
+
+export async function scanAllProjects(db: D1Database): Promise<void> {
+	// For the prototype, we scan all projects owned by all users.
+	// In a multi-user system this would iterate over all projects directly.
+	const stmt = db.prepare('SELECT * FROM projects');
+	const { results } = await stmt.all<Project>();
+	const projects = results || [];
+
+	for (const project of projects) {
+		await scanProject(db, project);
+	}
+}

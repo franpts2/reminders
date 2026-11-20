@@ -1,0 +1,28 @@
+name = "github-pm-reminders"
+main = ".svelte-kit/cloudflare/_worker.js"
+compatibility_date = "2024-10-01"
+
+[vars]
+# Replace this with the Client ID of your GitHub OAuth app
+# (https://github.com/settings/developers). The app's callback URL must be
+# `${APP_URL}/auth/callback`. For local dev you can override this in .dev.vars.
+GITHUB_CLIENT_ID = "your-github-oauth-app-client-id"
+APP_URL = "http://localhost:5173"
+
+# Local development secrets go in .dev.vars (see .dev.vars.example).
+# Production secrets are set with:
+# wrangler secret put GITHUB_CLIENT_SECRET
+# wrangler secret put SESSION_SECRET
+# wrangler secret put CRON_SECRET
+
+[[d1_databases]]
+binding = "DB"
+database_name = "github-pm-reminders-db"
+database_id = "your-database-id"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "your-kv-namespace-id"
+
+# For automated periodic scans, point an external cron service at /api/scan
+# with the x-cron-secret header matching CRON_SECRET.

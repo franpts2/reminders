@@ -1,0 +1,10 @@
+# Local development values for `npm run dev`.
+# Copy this file to `.dev.vars` and fill in the values. `.dev.vars` is gitignored.
+# These override the [vars] in wrangler.toml while running locally.
+#
+# The callback URL registered on the GitHub OAuth app must be
+# `${APP_URL}/auth/callback` (e.g. http://localhost:5173/auth/callback).
+GITHUB_CLIENT_ID=your-github-oauth-app-client-id
+GITHUB_CLIENT_SECRET=
+SESSION_SECRET=
+APP_URL=http://localhost:5173
