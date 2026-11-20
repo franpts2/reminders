@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import AlarmClockIcon from '@lucide/svelte/icons/alarm-clock';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import FolderGit2Icon from '@lucide/svelte/icons/folder-git-2';
 	import GitPullRequestIcon from '@lucide/svelte/icons/git-pull-request';
@@ -14,9 +15,10 @@
 		user: App.Locals['user'];
 		projects: Array<{ id: string; name: string; owner: string; repo: string }>;
 		unreadCount: number;
+		snoozedCount: number;
 	}
 
-	let { user, projects, unreadCount }: Props = $props();
+	let { user, projects, unreadCount, snoozedCount }: Props = $props();
 
 	const pathname = $derived(page.url.pathname);
 	const initials = $derived(user?.github_login.slice(0, 2).toUpperCase() ?? 'GH');
@@ -58,6 +60,20 @@
 								<span>Inbox</span>
 								{#if unreadCount > 0}
 									<Sidebar.MenuBadge>{unreadCount}</Sidebar.MenuBadge>
+								{/if}
+							</a>
+						{/snippet}
+					</Sidebar.MenuButton>
+				</Sidebar.MenuItem>
+
+				<Sidebar.MenuItem>
+					<Sidebar.MenuButton isActive={pathname === '/inbox/snoozed'} tooltipContent="Snoozed">
+						{#snippet child({ props })}
+							<a href="/inbox/snoozed" {...props}>
+								<AlarmClockIcon />
+								<span>Snoozed</span>
+								{#if snoozedCount > 0}
+									<Sidebar.MenuBadge>{snoozedCount}</Sidebar.MenuBadge>
 								{/if}
 							</a>
 						{/snippet}

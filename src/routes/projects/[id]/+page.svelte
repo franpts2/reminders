@@ -115,6 +115,7 @@
 			<form
 				method="POST"
 				action="?/scanNow"
+				aria-busy={scanning}
 				use:enhance={() => {
 					scanning = true;
 					return async ({ result, update }) => {

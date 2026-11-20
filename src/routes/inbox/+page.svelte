@@ -5,11 +5,11 @@
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import SearchXIcon from '@lucide/svelte/icons/search-x';
 	import { toast } from 'svelte-sonner';
+	import MenuSelect from '$lib/components/menu-select.svelte';
 	import ReminderRow from '$lib/components/reminder-row.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
 	import { Kbd } from '$lib/components/ui/kbd/index.js';
-	import * as Select from '$lib/components/ui/select/index.js';
 	import type { InboxReminder } from '$lib/db';
 	import { submitAction } from '$lib/forms';
 	import { SeenTracker } from '$lib/seen-tracker.svelte';
@@ -280,6 +280,8 @@
 	});
 </script>
 
+<h1 class="sr-only">Inbox</h1>
+
 <div class="flex flex-col">
 	<div
 		class="sticky top-14 z-[1] flex flex-wrap items-center gap-2 border-b bg-background/90 px-4 py-2.5 backdrop-blur-sm"
@@ -290,6 +292,7 @@
 				<span class="text-muted-foreground/70">of {reminders.length}</span>
 			{/if}
 		</p>
+
 
 		<span class="hidden items-center gap-3 text-[11px] text-muted-foreground sm:flex">
 			<span class="flex items-center gap-1.5">
@@ -303,54 +306,29 @@
 		</span>
 
 		<div class="ml-auto flex flex-wrap items-center gap-1.5">
-			<Select.Root
-				type="single"
-				value={sortOrder}
-				items={sortItems}
-				onValueChange={(value) => setSort(value)}
-			>
-				<Select.Trigger size="sm" class="max-w-[150px] text-xs">
-					<Select.Value placeholder="Oldest first" />
-				</Select.Trigger>
-				<Select.Content>
-					<Select.Item value="oldest" label="Oldest first">Oldest first</Select.Item>
-					<Select.Item value="newest" label="Newest first">Newest first</Select.Item>
-				</Select.Content>
-			</Select.Root>
+			<MenuSelect
+				bind:value={sortOrder}
+				options={sortItems}
+				label="Sort reminders"
+				class="h-7 max-w-[150px]"
+				onChange={setSort}
+			/>
 
-			<Select.Root
-				type="single"
-				value={projectFilter}
-				items={projectItems}
-				onValueChange={(value) => setFilter('project', value)}
-			>
-				<Select.Trigger size="sm" class="max-w-[180px] text-xs">
-					<Select.Value placeholder="All projects" />
-				</Select.Trigger>
-				<Select.Content>
-					<Select.Item value="all" label="All projects">All projects</Select.Item>
-					{#each projectOptions as project (project.id)}
-						<Select.Item value={project.id} label={project.name}>{project.name}</Select.Item>
-					{/each}
-				</Select.Content>
-			</Select.Root>
+			<MenuSelect
+				bind:value={projectFilter}
+				options={projectItems}
+				label="Filter by project"
+				class="h-7 max-w-[180px]"
+				onChange={(value) => setFilter('project', value)}
+			/>
 
-			<Select.Root
-				type="single"
-				value={typeFilter}
-				items={ruleItems}
-				onValueChange={(value) => setFilter('type', value)}
-			>
-				<Select.Trigger size="sm" class="max-w-[180px] text-xs">
-					<Select.Value placeholder="All rules" />
-				</Select.Trigger>
-				<Select.Content>
-					<Select.Item value="all" label="All rules">All rules</Select.Item>
-					{#each typeOptions as type (type.value)}
-						<Select.Item value={type.value} label={type.label}>{type.label}</Select.Item>
-					{/each}
-				</Select.Content>
-			</Select.Root>
+			<MenuSelect
+				bind:value={typeFilter}
+				options={ruleItems}
+				label="Filter by rule"
+				class="h-7 max-w-[180px]"
+				onChange={(value) => setFilter('type', value)}
+			/>
 
 			{#if filtersActive}
 				<Button variant="ghost" size="sm" class="h-7 px-2 text-xs" onclick={clearFilters}>

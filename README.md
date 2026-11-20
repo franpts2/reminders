@@ -1,24 +1,58 @@
-# GitHub PM Reminders (Prototype)
+# GitHub PM Reminders
 
-A SvelteKit + Cloudflare Workers app that scans public GitHub repositories and creates in-app reminders for project managers.
+An inbox for the work a project manager has to chase: issues that were handed out but never started, pull requests waiting on review, approvals that never merged, and work that has gone quiet.
 
-## Features (Prototype)
+Built with SvelteKit on Cloudflare Workers, with D1 for state.
 
-- Sign in with GitHub (read-only)
-- Create a project linked to a public repo
-- Configure reminder rules with custom thresholds
-- Manual scan from project page
-- HTTP endpoint `/api/scan` for periodic scans via external cron service
-- In-app reminders dashboard
+## What it does
 
-## Reminder Types
+- Signs in with GitHub (read-only) and tracks public repositories
+- Puts every project's reminders into **one inbox**, ordered by how long each has been waiting
+- Filters by project and rule, sorts oldest or newest first, and keeps all of it in the URL
+- **Snoozes** a reminder for a day, three days or a week, with a page for everything currently snoozed
+- **Dismisses** with a five-second undo
+- Marks rows seen only once they have actually been on screen, so the sidebar count means something
+- Gives each project its own **rules page**: thresholds, live counts, scan history and deletion
+- Scans on demand per project, or on a schedule through `/api/scan`
 
-- **Assigned but not started** — issue assigned but no linked PR / not moved to In Progress
-- **PR open too long** — PR open longer than threshold
-- **PR with no review** — PR open with no review longer than threshold
-- **Approved but not merged** — PR approved but unmerged longer than threshold
-- **No activity** — issue or PR with no activity longer than threshold
-- **Stuck in project column** — placeholder (requires GitHub Projects v2 GraphQL integration)
+## Inbox behaviour
+
+- **Groups** are Over a week, This week and Today, ordered oldest first by default.
+- **The left bar** is teal when a reminder appeared in the most recent scan or is still unread, and muted when it was carried over and has been seen.
+- **Seen** means “was on screen for a moment”, not “the inbox was opened”.
+- **Keyboard**: `j` / `k` move, `Enter` opens on GitHub, `d` dismisses, `s` snoozes three days, `Escape` clears the selection.
+
+## Reminder rules
+
+| Rule | Fires when |
+| --- | --- |
+| Assigned but not started | An assigned issue has no linked PR and/or has not moved to In Progress |
+| PR open too long | A pull request has been open past the threshold |
+| PR with no review | A pull request has had no review past the threshold |
+| Approved but not merged | An approved pull request has not been merged past the threshold |
+| No activity | An issue or PR has had no activity past the threshold |
+| Stuck in project column | Shown but disabled: requires the GitHub Projects v2 API |
+
+“Counts as started” is configurable per rule: a linked PR, movement to In Progress, or both.
+
+## Reminder lifecycle
+
+Each project, rule and item owns exactly one reminder row:
+
+- a new match creates it as **open**
+- a match that is still true refreshes its message and assignee, keeping seen and snooze state
+- a condition that stops matching marks it **resolved**
+- a condition that comes back **reopens** it as unread
+- a reminder you **dismiss** stays dismissed until you restore it, and the scanner will not recreate it
+
+Disabling a rule resolves the reminders it already produced.
+
+## Stack
+
+- SvelteKit 2 and Svelte 5, deployed with `@sveltejs/adapter-cloudflare`
+- Cloudflare Workers with a D1 database
+- Tailwind CSS 4 and shadcn-svelte (bits-ui)
+- Self-hosted Geist and Geist Mono
 
 ## Setup
 
@@ -30,7 +64,7 @@ npm install
 
 ### 2. Create a GitHub OAuth app
 
-- Go to GitHub → Settings → Developer settings → OAuth Apps → New OAuth App
+- GitHub → Settings → Developer settings → OAuth Apps → New OAuth App
 - Application name: `GitHub PM Reminders`
 - Authorization callback URL: `http://localhost:5173/auth/callback`
 - Copy the **Client ID** and **Client Secret**
@@ -41,13 +75,13 @@ npm install
 npx wrangler d1 create github-pm-reminders-db
 ```
 
-Update `wrangler.toml` with the `database_id` from the output.
+Put the `database_id` from the output into `wrangler.toml`.
 
-### 4. Set secrets
+### 4. Configure secrets
 
 For local development, copy `.dev.vars.example` to `.dev.vars` and fill in
-`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `SESSION_SECRET`
-(`SESSION_SECRET` can be any long random string). `.dev.vars` is gitignored.
+`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` and `SESSION_SECRET`
+(any long random string). `.dev.vars` is gitignored.
 
 For production:
 
@@ -57,66 +91,50 @@ npx wrangler secret put SESSION_SECRET
 npx wrangler secret put CRON_SECRET
 ```
 
-Also update `GITHUB_CLIENT_ID` and `APP_URL` in `wrangler.toml`.
+Also set `GITHUB_CLIENT_ID` and `APP_URL` in `wrangler.toml`.
 
-### 5. Apply database migrations
+### 5. Apply migrations
 
-Local:
 ```bash
 npm run db:migrate:local
 ```
 
-Production:
-```bash
-npm run db:migrate:prod
-```
+Migrations are additive; run them before deploying code that needs new columns.
 
 ### 6. Run locally
-
-Either use the Vite dev server (bindings and `wrangler.toml` vars are emulated,
-and `.dev.vars` is loaded):
 
 ```bash
 npm run dev
 ```
 
-Or build first, then use Wrangler dev explicitly:
+Bindings and `wrangler.toml` vars are emulated and `.dev.vars` is loaded. Open
+http://localhost:5173.
 
-```bash
-npm run build
-npx wrangler dev --port 5173
-```
-
-Open http://localhost:5173.
-
-If "Sign in with GitHub" lands on a GitHub 404, the `GITHUB_CLIENT_ID` is still
-the placeholder value or does not match a real OAuth app.
+If “Sign in with GitHub” lands on a GitHub 404, `GITHUB_CLIENT_ID` is still the
+placeholder or does not match a real OAuth app.
 
 ## Deployment
 
 ```bash
 npm run build
+npm run db:migrate:prod
 npm run deploy
 ```
 
-Apply migrations in production:
-```bash
-npm run db:migrate:prod
-```
+## Scheduled scans
 
-## Periodic Scanning
+There are two ways to scan:
 
-For the prototype, periodic scans can be triggered by:
+1. **Scan now** on a project page
+2. `GET /api/scan` with an `x-cron-secret` header matching `CRON_SECRET`, which scans every project
 
-1. Clicking **Scan now** on a project page
-2. Calling `/api/scan` with the `x-cron-secret` header matching `CRON_SECRET`
+Point an external scheduler (cron-job.org, GitHub Actions, a Worker cron) at the
+endpoint, hourly is a sensible default.
 
-For production, configure an external cron service (e.g., cron-job.org, GitHub Actions) to hit `/api/scan` hourly.
+## Limits
 
-## Known Limitations
-
-- Only public repositories
-- One project per user in the prototype
-- "Stuck in project column" is not yet implemented
-- "Moved to In Progress" detection uses linked PR as proxy
-- PM invitations and org-level views are not implemented yet
+- Public repositories only.
+- A scan reads the first 100 open issues and 100 open pull requests per repository.
+- “Stuck in project column” needs GitHub Projects v2 and is not implemented.
+- No email, Slack or desktop notifications; everything is in-app.
+- Team invitations and organisation-level views do not exist yet; a project belongs to the user who created it.

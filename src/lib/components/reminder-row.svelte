@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AlarmClockOffIcon from '@lucide/svelte/icons/alarm-clock-off';
 	import ArrowUpRightIcon from '@lucide/svelte/icons/arrow-up-right';
 	import CircleDotIcon from '@lucide/svelte/icons/circle-dot';
 	import ClockIcon from '@lucide/svelte/icons/clock';
@@ -18,8 +19,10 @@
 		unread?: boolean;
 		isNew?: boolean;
 		showProject?: boolean;
+		mode?: 'active' | 'snoozed';
 		onDismiss: (id: string) => void;
-		onSnooze: (id: string, days: number) => void;
+		onSnooze?: (id: string, days: number) => void;
+		onUnsnooze?: (id: string) => void;
 		onSeen?: (id: string) => void;
 	}
 
@@ -30,8 +33,10 @@
 		unread = false,
 		isNew = false,
 		showProject = true,
+		mode = 'active',
 		onDismiss,
 		onSnooze,
+		onUnsnooze,
 		onSeen
 	}: Props = $props();
 
@@ -126,9 +131,15 @@
 				<span>@{reminder.assignee}</span>
 			{/if}
 			<span aria-hidden="true">·</span>
-			<time datetime={reminder.created_at} class="tabular-nums">
-				{timeAgo(reminder.created_at)}
-			</time>
+			{#if mode === 'snoozed' && reminder.snoozed_until}
+				<time datetime={reminder.snoozed_until} class="tabular-nums">
+					wakes {timeAgo(reminder.snoozed_until)}
+				</time>
+			{:else}
+				<time datetime={reminder.created_at} class="tabular-nums">
+					{timeAgo(reminder.created_at)}
+				</time>
+			{/if}
 		</div>
 	</div>
 
@@ -148,28 +159,51 @@
 			{/snippet}
 		</IconTooltip>
 
-		<IconTooltip label="Snooze">
-			{#snippet children({ props })}
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger
+		{#if mode === 'snoozed'}
+			<IconTooltip label="Back to inbox">
+				{#snippet children({ props })}
+					<Button
 						{...props}
-						class={buttonVariants({
-							variant: 'ghost',
-							size: 'icon',
-							class: 'size-7 text-muted-foreground'
-						})}
-						aria-label="Snooze reminder"
+						variant="ghost"
+						size="icon"
+						class="size-7 text-muted-foreground"
+						aria-label="Unsnooze reminder"
+						onclick={() => onUnsnooze?.(reminder.id)}
 					>
-						<ClockIcon class="size-4" />
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="end" class="w-40">
-						<DropdownMenu.Item onSelect={() => onSnooze(reminder.id, 1)}>For 1 day</DropdownMenu.Item>
-						<DropdownMenu.Item onSelect={() => onSnooze(reminder.id, 3)}>For 3 days</DropdownMenu.Item>
-						<DropdownMenu.Item onSelect={() => onSnooze(reminder.id, 7)}>For 1 week</DropdownMenu.Item>
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
-			{/snippet}
-		</IconTooltip>
+						<AlarmClockOffIcon class="size-4" />
+					</Button>
+				{/snippet}
+			</IconTooltip>
+		{:else}
+			<IconTooltip label="Snooze">
+				{#snippet children({ props })}
+					<DropdownMenu.Root>
+						<DropdownMenu.Trigger
+							{...props}
+							class={buttonVariants({
+								variant: 'ghost',
+								size: 'icon',
+								class: 'size-7 text-muted-foreground'
+							})}
+							aria-label="Snooze reminder"
+						>
+							<ClockIcon class="size-4" />
+						</DropdownMenu.Trigger>
+						<DropdownMenu.Content align="end" class="w-40">
+							<DropdownMenu.Item onSelect={() => onSnooze?.(reminder.id, 1)}
+								>For 1 day</DropdownMenu.Item
+							>
+							<DropdownMenu.Item onSelect={() => onSnooze?.(reminder.id, 3)}
+								>For 3 days</DropdownMenu.Item
+							>
+							<DropdownMenu.Item onSelect={() => onSnooze?.(reminder.id, 7)}
+								>For 1 week</DropdownMenu.Item
+							>
+						</DropdownMenu.Content>
+					</DropdownMenu.Root>
+				{/snippet}
+			</IconTooltip>
+		{/if}
 
 		<IconTooltip label="Open on GitHub">
 			{#snippet children({ props })}

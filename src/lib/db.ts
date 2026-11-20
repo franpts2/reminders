@@ -257,6 +257,42 @@ export async function getInboxReminders(
 	return results || [];
 }
 
+export async function getSnoozedReminders(
+	db: D1Database,
+	userId: string,
+	now = new Date()
+): Promise<InboxReminder[]> {
+	const { results } = await db
+		.prepare(
+			`SELECT r.*, p.name AS project_name, p.owner AS project_owner, p.repo AS project_repo
+			FROM reminders r
+			JOIN projects p ON p.id = r.project_id
+			WHERE p.created_by_user_id = ? AND r.status = 'open'
+				AND r.snoozed_until IS NOT NULL AND r.snoozed_until > ?
+			ORDER BY r.snoozed_until ASC`
+		)
+		.bind(userId, now.toISOString())
+		.all<InboxReminder>();
+	return results || [];
+}
+
+export async function getSnoozedReminderCount(
+	db: D1Database,
+	userId: string,
+	now = new Date()
+): Promise<number> {
+	const row = await db
+		.prepare(
+			`SELECT COUNT(*) AS count FROM reminders r
+			JOIN projects p ON p.id = r.project_id
+			WHERE p.created_by_user_id = ? AND r.status = 'open'
+				AND r.snoozed_until IS NOT NULL AND r.snoozed_until > ?`
+		)
+		.bind(userId, now.toISOString())
+		.first<{ count: number }>();
+	return row?.count ?? 0;
+}
+
 export async function getOpenRemindersByType(
 	db: D1Database,
 	projectId: string,

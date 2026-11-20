@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { untrack } from 'svelte';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import { toast } from 'svelte-sonner';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
+	import MenuSelect from '$lib/components/menu-select.svelte';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -19,6 +21,21 @@
 
 	let dirty = $state(false);
 	let deleteForm: HTMLFormElement;
+
+	// Captured once: afterwards the select owns the value until a save.
+	let startedDefinition = $state(
+		untrack(
+			() =>
+				data.configs.find((config: any) => config.type === 'assigned_not_started')
+					?.started_definition ?? 'both'
+		)
+	);
+
+	const STARTED_OPTIONS = [
+		{ value: 'linked_pr', label: 'a PR is linked' },
+		{ value: 'in_progress_column', label: 'it moves to In Progress' },
+		{ value: 'both', label: 'both' }
+	];
 
 	const GROUPS = [
 		{
@@ -149,16 +166,13 @@
 
 								{#if typeKey === 'assigned_not_started'}
 									<span class="ml-1 text-xs text-muted-foreground">· counts as started when</span>
-									<select
-										name="started_{typeKey}"
-										value={config.started_definition || 'both'}
-										class="h-8 rounded-md border border-input bg-background px-2 text-xs focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
-										aria-label="What counts as started"
-									>
-										<option value="linked_pr">a PR is linked</option>
-										<option value="in_progress_column">it moves to In Progress</option>
-										<option value="both">both</option>
-									</select>
+									<MenuSelect
+										bind:value={startedDefinition}
+										options={STARTED_OPTIONS}
+										label="What counts as started"
+										onChange={() => (dirty = true)}
+									/>
+									<input type="hidden" name="started_{typeKey}" value={startedDefinition} />
 								{/if}
 							</div>
 						</div>
