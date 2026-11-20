@@ -332,22 +332,35 @@ export async function refreshReminder(
 		.run();
 }
 
+// D1 allows 100 bound parameters per query. Each batch spends one on
+// seen_at and one on the user id, so the remaining budget is the chunk size.
+const D1_MAX_BOUND_PARAMETERS = 100;
+const SEEN_BATCH_SIZE = D1_MAX_BOUND_PARAMETERS - 2;
+
 export async function markRemindersSeenForUser(
 	db: D1Database,
 	userId: string,
 	ids: string[],
 	now = new Date()
 ): Promise<void> {
-	if (ids.length === 0) return;
-	const placeholders = ids.map(() => '?').join(', ');
-	await db
-		.prepare(
-			`UPDATE reminders SET seen_at = ?
-			WHERE seen_at IS NULL AND id IN (${placeholders})
-				AND project_id IN (SELECT id FROM projects WHERE created_by_user_id = ?)`
-		)
-		.bind(now.toISOString(), ...ids, userId)
-		.run();
+	const uniqueIds = [...new Set(ids)];
+	if (uniqueIds.length === 0) return;
+
+	const seenAt = now.toISOString();
+
+	for (let start = 0; start < uniqueIds.length; start += SEEN_BATCH_SIZE) {
+		const batch = uniqueIds.slice(start, start + SEEN_BATCH_SIZE);
+		const placeholders = batch.map(() => '?').join(', ');
+
+		await db
+			.prepare(
+				`UPDATE reminders SET seen_at = ?
+				WHERE seen_at IS NULL AND id IN (${placeholders})
+					AND project_id IN (SELECT id FROM projects WHERE created_by_user_id = ?)`
+			)
+			.bind(seenAt, ...batch, userId)
+			.run();
+	}
 }
 
 export async function snoozeReminder(db: D1Database, id: string, until: Date): Promise<void> {
