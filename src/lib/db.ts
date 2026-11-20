@@ -332,15 +332,6 @@ export async function refreshReminder(
 		.run();
 }
 
-export async function markRemindersSeen(db: D1Database, ids: string[], now = new Date()): Promise<void> {
-	if (ids.length === 0) return;
-	const placeholders = ids.map(() => '?').join(', ');
-	await db
-		.prepare(`UPDATE reminders SET seen_at = ? WHERE seen_at IS NULL AND id IN (${placeholders})`)
-		.bind(now.toISOString(), ...ids)
-		.run();
-}
-
 export async function markRemindersSeenForUser(
 	db: D1Database,
 	userId: string,
