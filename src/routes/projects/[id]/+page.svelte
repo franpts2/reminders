@@ -134,7 +134,7 @@
 					};
 				}}
 			>
-				<Button type="submit" disabled={scanning}>
+				<Button type="submit" size="sm" disabled={scanning}>
 					{scanning ? 'Scanning…' : 'Scan now'}
 				</Button>
 			</form>
