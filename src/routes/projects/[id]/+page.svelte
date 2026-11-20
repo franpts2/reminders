@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { toast } from 'svelte-sonner';
+	import { onMount } from 'svelte';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
-	import MarkSeen from '$lib/components/mark-seen.svelte';
+	import { toast } from 'svelte-sonner';
+	import ReminderRow from '$lib/components/reminder-row.svelte';
 	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { submitAction } from '$lib/forms';
-	import { timeAgo } from '$lib/time';
+	import { SeenTracker } from '$lib/seen-tracker.svelte';
+	import { parseTimestamp, timeAgo } from '$lib/time';
 
 	interface Props {
 		data: any;
@@ -16,15 +17,20 @@
 	let { data, form }: Props = $props();
 
 	let scanning = $state(false);
+	const seen = new SeenTracker();
 
-	const visibleIds = $derived(data.reminders.map((reminder: any) => reminder.id));
+	const latestScanAt = $derived(
+		data.latestScan ? parseTimestamp(data.latestScan.started_at) : 0
+	);
 
-	function labelFor(type: string) {
-		return data.reminderTypeLabels.find((t: any) => t.key === type)?.label || type;
+	function shortLabelFor(type: string) {
+		return data.reminderTypeLabels.find((t: any) => t.key === type)?.short_label || type;
 	}
 
-	function descriptionFor(type: string) {
-		return data.reminderTypeLabels.find((t: any) => t.key === type)?.description || '';
+	// A reminder is "new" when it first appeared in the most recent scan, or
+	// while it is still unread.
+	function isFromLatestScan(reminder: any) {
+		return latestScanAt > 0 && parseTimestamp(reminder.created_at) >= latestScanAt;
 	}
 
 	async function snooze(reminderId: string, days: number) {
@@ -34,7 +40,9 @@
 		});
 
 		if (result.type === 'success') {
-			toast(`Snoozed for ${days === 1 ? '1 day' : `${days} days`}`);
+			toast(`Snoozed for ${days === 1 ? '1 day' : `${days} days`}`, {
+				action: { label: 'Undo', onClick: () => restore(reminderId) }
+			});
 		} else {
 			toast.error('Could not snooze that reminder');
 		}
@@ -65,9 +73,11 @@
 			toast.error('Could not restore that reminder');
 		}
 	}
-</script>
 
-<MarkSeen ids={visibleIds} />
+	onMount(() => {
+		return () => seen.dispose();
+	});
+</script>
 
 <div class="space-y-8">
 	<div class="flex items-start justify-between gap-4">
@@ -135,72 +145,30 @@
 		<div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{form.error}</div>
 	{/if}
 
-	<section class="rounded-lg border bg-card p-6 text-card-foreground">
-		<h2 class="text-lg font-semibold text-foreground">Open reminders</h2>
+	<section>
+		<div class="flex items-baseline justify-between">
+			<h2 class="text-sm font-semibold text-foreground">Open reminders</h2>
+			<span class="text-xs tabular-nums text-muted-foreground">{data.reminders.length}</span>
+		</div>
 
 		{#if data.reminders.length === 0}
 			<p class="mt-2 text-sm text-muted-foreground">
 				No open reminders. Run a scan to check for stale issues and PRs.
 			</p>
 		{:else}
-			<ul class="mt-4 space-y-2">
+			<ul class="mt-2">
 				{#each data.reminders as reminder (reminder.id)}
-					<li class="rounded-md border p-4 transition-colors hover:bg-muted/50">
-						<div class="flex items-start justify-between gap-4">
-							<div class="min-w-0 flex-1">
-								<div class="flex flex-wrap items-center gap-2">
-									<a
-										href={reminder.github_url}
-										target="_blank"
-										rel="noopener noreferrer"
-										class="truncate font-medium text-foreground hover:underline"
-									>
-										<span class="font-mono text-muted-foreground">
-											{reminder.github_item_type === 'pr' ? 'PR' : 'Issue'} #{reminder.github_item_number}
-										</span>
-										{reminder.title}
-									</a>
-									<span
-										class="rounded border bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
-									>
-										{labelFor(reminder.type)}
-									</span>
-								</div>
-								<p class="mt-1 text-sm text-muted-foreground">{reminder.message}</p>
-								{#if reminder.assignee}
-									<p class="mt-1 text-xs text-muted-foreground">Assignee: {reminder.assignee}</p>
-								{/if}
-							</div>
-
-							<div class="flex shrink-0 items-center gap-1">
-								<DropdownMenu.Root>
-									<DropdownMenu.Trigger class={buttonVariants({ variant: 'ghost', size: 'sm' })}>
-										Snooze
-									</DropdownMenu.Trigger>
-									<DropdownMenu.Content align="end">
-										<DropdownMenu.Item onSelect={() => snooze(reminder.id, 1)}>
-											For 1 day
-										</DropdownMenu.Item>
-										<DropdownMenu.Item onSelect={() => snooze(reminder.id, 3)}>
-											For 3 days
-										</DropdownMenu.Item>
-										<DropdownMenu.Item onSelect={() => snooze(reminder.id, 7)}>
-											For 1 week
-										</DropdownMenu.Item>
-									</DropdownMenu.Content>
-								</DropdownMenu.Root>
-
-								<Button
-									variant="ghost"
-									size="sm"
-									class="text-muted-foreground"
-									onclick={() => dismiss(reminder.id)}
-								>
-									Dismiss
-								</Button>
-							</div>
-						</div>
-					</li>
+					{@const unread = seen.isUnread(reminder)}
+					<ReminderRow
+						{reminder}
+						typeLabel={shortLabelFor(reminder.type)}
+						showProject={false}
+						{unread}
+						isNew={unread || isFromLatestScan(reminder)}
+						onDismiss={dismiss}
+						onSnooze={snooze}
+						onSeen={seen.mark}
+					/>
 				{/each}
 			</ul>
 		{/if}

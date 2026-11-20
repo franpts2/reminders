@@ -17,6 +17,7 @@
 		active?: boolean;
 		unread?: boolean;
 		isNew?: boolean;
+		showProject?: boolean;
 		onDismiss: (id: string) => void;
 		onSnooze: (id: string, days: number) => void;
 		onSeen?: (id: string) => void;
@@ -28,6 +29,7 @@
 		active = false,
 		unread = false,
 		isNew = false,
+		showProject = true,
 		onDismiss,
 		onSnooze,
 		onSeen
@@ -35,7 +37,9 @@
 
 	const isPr = $derived(reminder.github_item_type === 'pr');
 	const reference = $derived(
-		`${reminder.project_owner}/${reminder.project_repo}#${reminder.github_item_number}`
+		showProject
+			? `${reminder.project_owner}/${reminder.project_repo}#${reminder.github_item_number}`
+			: `#${reminder.github_item_number}`
 	);
 	const actionsVisibility =
 		'transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100';
