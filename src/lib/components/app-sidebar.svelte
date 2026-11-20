@@ -51,7 +51,10 @@
 		<Sidebar.Group>
 			<Sidebar.Menu>
 				<Sidebar.MenuItem>
-					<Sidebar.MenuButton isActive={pathname === '/inbox'} tooltipContent="Inbox">
+					<Sidebar.MenuButton
+						isActive={pathname === '/inbox' || pathname.startsWith('/inbox/')}
+						tooltipContent="Inbox"
+					>
 						{#snippet child({ props })}
 							<a href="/inbox" {...props}>
 								<InboxIcon />

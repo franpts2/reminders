@@ -1,6 +1,11 @@
 import { redirect, error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { getInboxReminders, getLatestScanForUser, REMINDER_TYPES } from '$lib/db';
+import {
+	getInboxReminders,
+	getLatestScanForUser,
+	getSnoozedReminderCount,
+	REMINDER_TYPES
+} from '$lib/db';
 import { dismissForUser, restoreForUser, snoozeForUser, MAX_SNOOZE_DAYS } from '$lib/reminder-service';
 
 export const load: PageServerLoad = async ({ locals, platform }) => {
@@ -13,14 +18,16 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 		throw error(500, 'Database not configured');
 	}
 
-	const [reminders, latestScan] = await Promise.all([
+	const [reminders, latestScan, snoozedCount] = await Promise.all([
 		getInboxReminders(env.DB, locals.user.id),
-		getLatestScanForUser(env.DB, locals.user.id)
+		getLatestScanForUser(env.DB, locals.user.id),
+		getSnoozedReminderCount(env.DB, locals.user.id)
 	]);
 
 	return {
 		reminders,
 		latestScan,
+		snoozedCount,
 		reminderTypes: REMINDER_TYPES
 	};
 };

@@ -31,6 +31,7 @@
 	const pageTitle = $derived.by(() => {
 		const path = page.url.pathname;
 		if (path === '/inbox') return 'Inbox';
+		if (path === '/inbox/snoozed') return 'Snoozed';
 		if (path === '/projects/new') return 'New project';
 		if (!activeProject) return '';
 		return path.endsWith('/settings') ? `${activeProject.name} rules` : activeProject.name;

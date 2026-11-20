@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
+	import ClockIcon from '@lucide/svelte/icons/clock';
 	import SearchXIcon from '@lucide/svelte/icons/search-x';
 	import { toast } from 'svelte-sonner';
 	import ReminderRow from '$lib/components/reminder-row.svelte';
@@ -19,6 +20,7 @@
 		data: {
 			reminders: InboxReminder[];
 			latestScan: { finished_at: string | null; started_at: string } | null;
+			snoozedCount: number;
 			reminderTypes: Array<{ key: string; short_label: string }>;
 		};
 	}
@@ -290,6 +292,16 @@
 				<span class="text-muted-foreground/70">of {reminders.length}</span>
 			{/if}
 		</p>
+
+		{#if data.snoozedCount > 0}
+			<a
+				href="/inbox/snoozed"
+				class="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+			>
+				<ClockIcon class="size-3.5" />
+				<span class="tabular-nums">{data.snoozedCount}</span> snoozed
+			</a>
+		{/if}
 
 		<span class="hidden items-center gap-3 text-[11px] text-muted-foreground sm:flex">
 			<span class="flex items-center gap-1.5">
