@@ -17,6 +17,7 @@
 		active?: boolean;
 		unread?: boolean;
 		isNew?: boolean;
+		showProject?: boolean;
 		onDismiss: (id: string) => void;
 		onSnooze: (id: string, days: number) => void;
 		onSeen?: (id: string) => void;
@@ -28,6 +29,7 @@
 		active = false,
 		unread = false,
 		isNew = false,
+		showProject = true,
 		onDismiss,
 		onSnooze,
 		onSeen
@@ -35,7 +37,9 @@
 
 	const isPr = $derived(reminder.github_item_type === 'pr');
 	const reference = $derived(
-		`${reminder.project_owner}/${reminder.project_repo}#${reminder.github_item_number}`
+		showProject
+			? `${reminder.project_owner}/${reminder.project_repo}#${reminder.github_item_number}`
+			: `#${reminder.github_item_number}`
 	);
 	const actionsVisibility =
 		'transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100';
@@ -73,7 +77,7 @@
 	bind:this={rowElement}
 	id="reminder-{reminder.id}"
 	tabindex="-1"
-	data-active={active}
+	data-active={active ? 'true' : undefined}
 	class={cn(
 		'group relative flex items-start gap-3 border-b px-3 py-3 outline-none transition-colors sm:px-4',
 		'hover:bg-muted/60 data-[active=true]:bg-accent/70 focus-visible:bg-accent/70'
@@ -110,7 +114,13 @@
 		<div class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
 			<span class="font-mono">{reference}</span>
 			<span aria-hidden="true">·</span>
-			<span>{typeLabel}</span>
+			<a
+				href="/projects/{reminder.project_id}/settings#rule-{reminder.type}"
+				class="underline-offset-2 hover:text-foreground hover:underline"
+				title="View this rule"
+			>
+				{typeLabel}
+			</a>
 			{#if reminder.assignee}
 				<span aria-hidden="true">·</span>
 				<span>@{reminder.assignee}</span>

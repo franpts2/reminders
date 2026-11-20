@@ -24,10 +24,18 @@ export const load: PageServerLoad = async ({ params, locals, platform }) => {
 		throw error(404, 'Project not found');
 	}
 
-	const [reminders, latestScan] = await Promise.all([
+	const [activeReminders, latestScan] = await Promise.all([
 		getActiveRemindersByProject(env.DB, project.id),
 		getLatestScanByProject(env.DB, project.id)
 	]);
+
+	// The shared row expects the project fields the inbox query joins in.
+	const reminders = activeReminders.map((reminder) => ({
+		...reminder,
+		project_name: project.name,
+		project_owner: project.owner,
+		project_repo: project.repo
+	}));
 
 	return {
 		project,
