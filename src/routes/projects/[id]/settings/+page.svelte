@@ -101,7 +101,7 @@
 						{@const config = configFor(typeKey)}
 						{@const openNow = data.counts[typeKey] ?? 0}
 						{@const unavailable = typeKey === 'stuck_in_column'}
-						<div id="rule-{typeKey}" class="p-4 transition-colors">
+						<div id="rule-{typeKey}" class="scroll-mt-24 p-4 transition-colors">
 							<div class="flex flex-wrap items-center gap-2">
 								<h3 class="text-sm font-medium text-foreground">{type.label}</h3>
 								{#if unavailable}

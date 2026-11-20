@@ -114,7 +114,13 @@
 		<div class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
 			<span class="font-mono">{reference}</span>
 			<span aria-hidden="true">·</span>
-			<span>{typeLabel}</span>
+			<a
+				href="/projects/{reminder.project_id}/settings#rule-{reminder.type}"
+				class="underline-offset-2 hover:text-foreground hover:underline"
+				title="View this rule"
+			>
+				{typeLabel}
+			</a>
 			{#if reminder.assignee}
 				<span aria-hidden="true">·</span>
 				<span>@{reminder.assignee}</span>
