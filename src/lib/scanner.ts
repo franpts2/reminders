@@ -1,9 +1,12 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import {
-	getProjectsByUser,
 	getReminderConfigsByProject,
-	getRecentReminder,
+	getReminderByItem,
+	getOpenRemindersByType,
 	createReminder,
+	refreshReminder,
+	reopenReminder,
+	resolveReminder,
 	createScanLog,
 	finishScanLog,
 	getUserById,
@@ -27,13 +30,18 @@ import {
 	type ReminderCandidate
 } from './reminders';
 
-const DEDUPLICATION_WINDOW_DAYS = 3;
+export interface ScanResult {
+	itemsChecked: number;
+	remindersCreated: number;
+	remindersResolved: number;
+}
 
-export async function scanProject(db: D1Database, project: Project): Promise<void> {
+export async function scanProject(db: D1Database, project: Project): Promise<ScanResult> {
 	const scanLog = await createScanLog(db, {
 		project_id: project.id,
 		items_checked: 0,
 		reminders_created: 0,
+		reminders_resolved: 0,
 		error: null
 	});
 
@@ -69,6 +77,7 @@ export async function scanProject(db: D1Database, project: Project): Promise<voi
 
 		let itemsChecked = pureIssues.length + prs.length;
 		let remindersCreated = 0;
+		let remindersResolved = 0;
 
 		for (const config of enabledConfigs) {
 			let candidates: ReminderCandidate[] = [];
@@ -94,14 +103,14 @@ export async function scanProject(db: D1Database, project: Project): Promise<voi
 					break;
 			}
 
+			const stillMatches = new Set(candidates.map((candidate) => candidate.githubItemNumber));
+
 			for (const candidate of candidates) {
-				const since = new Date(Date.now() - DEDUPLICATION_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-				const existing = await getRecentReminder(
+				const existing = await getReminderByItem(
 					db,
 					project.id,
 					candidate.type,
-					candidate.githubItemNumber,
-					since
+					candidate.githubItemNumber
 				);
 
 				if (!existing) {
@@ -117,11 +126,40 @@ export async function scanProject(db: D1Database, project: Project): Promise<voi
 						status: 'open'
 					});
 					remindersCreated++;
+					continue;
 				}
+
+				if (existing.status === 'open') {
+					// Keep the copy current without losing seen/snooze state.
+					await refreshReminder(db, existing.id, {
+						github_url: candidate.githubUrl,
+						title: candidate.title,
+						assignee: candidate.assignee,
+						message: candidate.message
+					});
+				} else if (existing.status === 'resolved') {
+					// The condition came back after being resolved, so surface it again.
+					await reopenReminder(db, existing.id);
+					remindersCreated++;
+				}
+				// Dismissed reminders stay dismissed until the user restores them.
+			}
+
+			const openReminders = await getOpenRemindersByType(db, project.id, config.type);
+			for (const reminder of openReminders) {
+				if (stillMatches.has(reminder.github_item_number)) continue;
+				await resolveReminder(db, reminder.id);
+				remindersResolved++;
 			}
 		}
 
-		await finishScanLog(db, scanLog.id, { items_checked: itemsChecked, reminders_created: remindersCreated });
+		await finishScanLog(db, scanLog.id, {
+			items_checked: itemsChecked,
+			reminders_created: remindersCreated,
+			reminders_resolved: remindersResolved
+		});
+
+		return { itemsChecked, remindersCreated, remindersResolved };
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		await finishScanLog(db, scanLog.id, { error: message });
