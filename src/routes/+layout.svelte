@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../app.css';
+	import { ModeWatcher } from 'mode-watcher';
 	import type { Snippet } from 'svelte';
 
 	interface Props {
@@ -9,6 +10,8 @@
 
 	let { data, children }: Props = $props();
 </script>
+
+<ModeWatcher defaultMode="system" />
 
 <div class="min-h-screen">
 	<nav class="bg-white border-b border-gray-200">
