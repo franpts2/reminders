@@ -27,6 +27,7 @@
 
 	let projectFilter = $state('all');
 	let typeFilter = $state('all');
+	let sortOrder = $state('oldest');
 	let removed = $state<string[]>([]);
 	let activeId = $state<string | null>(null);
 
@@ -64,6 +65,11 @@
 		...typeOptions.map((type) => ({ value: type.value, label: type.label }))
 	]);
 
+	const sortItems = [
+		{ value: 'oldest', label: 'Oldest first' },
+		{ value: 'newest', label: 'Newest first' }
+	];
+
 	const filtered = $derived(
 		reminders.filter(
 			(reminder) =>
@@ -71,6 +77,13 @@
 				(projectFilter === 'all' || reminder.project_id === projectFilter) &&
 				(typeFilter === 'all' || reminder.type === typeFilter)
 		)
+	);
+
+	const sorted = $derived(
+		[...filtered].sort((a, b) => {
+			const difference = parseTimestamp(a.created_at) - parseTimestamp(b.created_at);
+			return sortOrder === 'newest' ? -difference : difference;
+		})
 	);
 
 	const groups = $derived.by(() => {
@@ -81,18 +94,22 @@
 			today: []
 		};
 
-		for (const reminder of filtered) {
+		for (const reminder of sorted) {
 			const age = now - parseTimestamp(reminder.created_at);
 			if (age >= 7 * DAY_MS) buckets.older.push(reminder);
 			else if (age >= DAY_MS) buckets.week.push(reminder);
 			else buckets.today.push(reminder);
 		}
 
-		return [
+		const bands = [
 			{ key: 'older', label: 'Over a week', items: buckets.older },
 			{ key: 'week', label: 'This week', items: buckets.week },
 			{ key: 'today', label: 'Today', items: buckets.today }
-		].filter((group) => group.items.length > 0);
+		];
+
+		return (sortOrder === 'newest' ? bands.reverse() : bands).filter(
+			(group) => group.items.length > 0
+		);
 	});
 
 	const flat = $derived(groups.flatMap((group) => group.items));
@@ -233,6 +250,16 @@
 		</p>
 
 		<div class="ml-auto flex flex-wrap items-center gap-1.5">
+			<Select.Root type="single" bind:value={sortOrder} items={sortItems}>
+				<Select.Trigger size="sm" class="max-w-[150px] text-xs">
+					<Select.Value placeholder="Oldest first" />
+				</Select.Trigger>
+				<Select.Content>
+					<Select.Item value="oldest" label="Oldest first">Oldest first</Select.Item>
+					<Select.Item value="newest" label="Newest first">Newest first</Select.Item>
+				</Select.Content>
+			</Select.Root>
+
 			<Select.Root type="single" bind:value={projectFilter} items={projectItems}>
 				<Select.Trigger size="sm" class="max-w-[180px] text-xs">
 					<Select.Value placeholder="All projects" />
