@@ -2,7 +2,6 @@ import { redirect, error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import {
 	getProjectById,
-	getReminderConfigsByProject,
 	getActiveRemindersByProject,
 	getLatestScanByProject,
 	REMINDER_TYPES
@@ -25,15 +24,13 @@ export const load: PageServerLoad = async ({ params, locals, platform }) => {
 		throw error(404, 'Project not found');
 	}
 
-	const [configs, reminders, latestScan] = await Promise.all([
-		getReminderConfigsByProject(env.DB, project.id),
+	const [reminders, latestScan] = await Promise.all([
 		getActiveRemindersByProject(env.DB, project.id),
 		getLatestScanByProject(env.DB, project.id)
 	]);
 
 	return {
 		project,
-		configs,
 		reminders,
 		latestScan,
 		reminderTypeLabels: REMINDER_TYPES

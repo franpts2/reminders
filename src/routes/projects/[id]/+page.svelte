@@ -18,9 +18,6 @@
 	let scanning = $state(false);
 
 	const visibleIds = $derived(data.reminders.map((reminder: any) => reminder.id));
-	const enabledRules = $derived(
-		data.configs.filter((config: any) => config.enabled === 1).length
-	);
 
 	function labelFor(type: string) {
 		return data.reminderTypeLabels.find((t: any) => t.key === type)?.label || type;
@@ -94,13 +91,6 @@
 			{:else}
 				<p class="mt-2 text-xs text-muted-foreground">Not scanned yet</p>
 			{/if}
-			<p class="mt-1 text-xs text-muted-foreground">
-				{enabledRules} of {data.configs.length} rules active ·
-				<a
-					href="/projects/{data.project.id}/settings"
-					class="underline underline-offset-2 hover:text-foreground">Manage rules</a
-				>
-			</p>
 		</div>
 
 		<div class="flex shrink-0 items-center gap-2">
