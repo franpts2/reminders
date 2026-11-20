@@ -40,6 +40,13 @@
 
 <ModeWatcher defaultMode="system" />
 
+<a
+	href="#main-content"
+	class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:shadow-md focus:ring-2 focus:ring-ring"
+>
+	Skip to content
+</a>
+
 {#if data.user}
 	<Sidebar.Provider>
 		<AppSidebar user={data.user} projects={data.projects} unreadCount={data.unreadCount} />
@@ -63,7 +70,10 @@
 				</div>
 			</header>
 
-			<main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+			<main
+				id="main-content"
+				class="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 lg:px-8"
+			>
 				{@render children()}
 			</main>
 		</div>
@@ -84,7 +94,7 @@
 				<a href="/auth/github" class={buttonVariants({ size: 'sm' })}>Sign in</a>
 			</div>
 		</header>
-		<main class="flex flex-1 flex-col">
+		<main id="main-content" class="flex flex-1 flex-col">
 			{@render children()}
 		</main>
 	</div>
