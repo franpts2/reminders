@@ -207,12 +207,14 @@
 	</section>
 
 	<section class="mt-10 rounded-lg border border-destructive/30 p-5">
-		<h2 class="text-sm font-semibold text-destructive">Danger zone</h2>
-		<div class="mt-1 flex items-center justify-between gap-4">
-			<p class="max-w-prose text-xs leading-5 text-muted-foreground">
-				Deleting this project removes its reminders, rules and scan history. Nothing on GitHub is
-				changed.
-			</p>
+		<div class="flex items-center justify-between gap-4">
+			<div class="min-w-0">
+				<h2 class="text-sm font-semibold text-destructive">Danger zone</h2>
+				<p class="mt-1 max-w-prose text-xs leading-5 text-muted-foreground">
+					Deleting this project removes its reminders, rules and scan history. Nothing on GitHub is
+					changed.
+				</p>
+			</div>
 
 			<AlertDialog.Root>
 				<AlertDialog.Trigger
