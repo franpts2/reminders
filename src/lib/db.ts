@@ -286,6 +286,46 @@ export async function getLatestScanForUser(
 	return result || null;
 }
 
+export async function getRecentScansByProject(
+	db: D1Database,
+	projectId: string,
+	limit = 5
+): Promise<ScanLog[]> {
+	const { results } = await db
+		.prepare(
+			`SELECT * FROM scan_logs WHERE project_id = ?
+			ORDER BY started_at DESC, rowid DESC LIMIT ?`
+		)
+		.bind(projectId, limit)
+		.all<ScanLog>();
+	return results || [];
+}
+
+export async function getOpenReminderCounts(
+	db: D1Database,
+	projectId: string
+): Promise<Record<string, number>> {
+	const { results } = await db
+		.prepare(
+			`SELECT type, COUNT(*) AS count FROM reminders
+			WHERE project_id = ? AND status = 'open'
+			GROUP BY type`
+		)
+		.bind(projectId)
+		.all<{ type: string; count: number }>();
+
+	return Object.fromEntries((results || []).map((row) => [row.type, row.count]));
+}
+
+export async function deleteProject(db: D1Database, projectId: string): Promise<void> {
+	await db.batch([
+		db.prepare('DELETE FROM reminders WHERE project_id = ?').bind(projectId),
+		db.prepare('DELETE FROM reminder_configs WHERE project_id = ?').bind(projectId),
+		db.prepare('DELETE FROM scan_logs WHERE project_id = ?').bind(projectId),
+		db.prepare('DELETE FROM projects WHERE id = ?').bind(projectId)
+	]);
+}
+
 export async function getReminderById(db: D1Database, id: string): Promise<Reminder | null> {
 	const result = await db.prepare('SELECT * FROM reminders WHERE id = ?').bind(id).first<Reminder>();
 	return result || null;

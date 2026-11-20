@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
+	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import MarkSeen from '$lib/components/mark-seen.svelte';
 	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
@@ -92,105 +93,47 @@
 			{/if}
 		</div>
 
-		<form
-			method="POST"
-			action="?/scanNow"
-			use:enhance={() => {
-				scanning = true;
-				return async ({ result, update }) => {
-					scanning = false;
-					await update();
+		<div class="flex shrink-0 items-center gap-2">
+			<a
+				href="/projects/{data.project.id}/settings"
+				class={buttonVariants({ variant: 'outline', size: 'sm' })}
+			>
+				<SettingsIcon class="size-4" />
+				Rules
+			</a>
 
-					if (result.type === 'success') {
-						const outcome = (result.data as any)?.result;
-						toast.success('Scan finished', {
-							description: outcome
-								? `${outcome.itemsChecked} items checked · ${outcome.remindersCreated} new · ${outcome.remindersResolved} resolved`
-								: undefined
-						});
-					} else if (result.type === 'failure') {
-						toast.error((result.data as any)?.error ?? 'Scan failed');
-					}
-				};
-			}}
-		>
-			<Button type="submit" disabled={scanning}>
-				{scanning ? 'Scanning…' : 'Scan now'}
-			</Button>
-		</form>
+			<form
+				method="POST"
+				action="?/scanNow"
+				use:enhance={() => {
+					scanning = true;
+					return async ({ result, update }) => {
+						scanning = false;
+						await update();
+
+						if (result.type === 'success') {
+							const outcome = (result.data as any)?.result;
+							toast.success('Scan finished', {
+								description: outcome
+									? `${outcome.itemsChecked} items checked · ${outcome.remindersCreated} new · ${outcome.remindersResolved} resolved`
+									: undefined
+							});
+						} else if (result.type === 'failure') {
+							toast.error((result.data as any)?.error ?? 'Scan failed');
+						}
+					};
+				}}
+			>
+				<Button type="submit" disabled={scanning}>
+					{scanning ? 'Scanning…' : 'Scan now'}
+				</Button>
+			</form>
+		</div>
 	</div>
 
 	{#if form?.error}
 		<div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{form.error}</div>
 	{/if}
-
-	<section class="rounded-lg border bg-card p-6 text-card-foreground">
-		<h2 class="text-lg font-semibold text-foreground">Reminder settings</h2>
-		<p class="text-sm text-muted-foreground">
-			Choose which reminders to enable and set thresholds.
-		</p>
-
-		<div class="mt-6 space-y-6">
-			{#each data.configs as config}
-				<form method="POST" action="?/updateConfig" class="rounded-md border p-4">
-					<input type="hidden" name="type" value={config.type} />
-					<div class="flex items-start justify-between gap-4">
-						<div class="flex-1">
-							<h3 class="font-medium text-foreground">{labelFor(config.type)}</h3>
-							<p class="text-sm text-muted-foreground">{descriptionFor(config.type)}</p>
-						</div>
-						<label class="inline-flex cursor-pointer items-center">
-							<input
-								type="checkbox"
-								name="enabled"
-								checked={config.enabled === 1}
-								class="h-4 w-4 rounded border-input text-primary focus:ring-ring"
-							/>
-							<span class="ml-2 text-sm text-foreground">Enabled</span>
-						</label>
-					</div>
-
-					<div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-						<div>
-							<label for="threshold_{config.type}" class="block text-sm font-medium text-foreground">
-								Threshold (days)
-							</label>
-							<input
-								type="number"
-								name="threshold_days"
-								id="threshold_{config.type}"
-								min="1"
-								value={config.threshold_days}
-								class="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 shadow-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
-							/>
-						</div>
-
-						{#if config.type === 'assigned_not_started'}
-							<div>
-								<label for="started_{config.type}" class="block text-sm font-medium text-foreground">
-									"Started" means
-								</label>
-								<select
-									name="started_definition"
-									id="started_{config.type}"
-									value={config.started_definition || 'both'}
-									class="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 shadow-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
-								>
-									<option value="linked_pr">Linked PR exists</option>
-									<option value="in_progress_column">Moved to In Progress</option>
-									<option value="both">Both</option>
-								</select>
-							</div>
-						{/if}
-					</div>
-
-					<div class="mt-4 flex justify-end">
-						<Button type="submit" variant="outline" size="sm">Save</Button>
-					</div>
-				</form>
-			{/each}
-		</div>
-	</section>
 
 	<section class="rounded-lg border bg-card p-6 text-card-foreground">
 		<h2 class="text-lg font-semibold text-foreground">Open reminders</h2>
