@@ -16,7 +16,6 @@
 	];
 
 	let contentElement = $state.raw<HTMLDivElement | null>(null);
-	let draggedClosed = false;
 
 	$effect(() => {
 		if (!contentElement) return;
@@ -25,18 +24,16 @@
 			axis: 'y',
 			direction: 1,
 			onClose: () => {
-				draggedClosed = true;
 				open = false;
 			}
 		});
 	});
 
-	// A drag leaves the panel translated off screen; clear that before the
-	// next open so the built-in entrance animation starts from its place.
+	// A drag leaves the panel translated off screen; clear that whenever the
+	// sheet opens so the built-in entrance animation can run again.
 	$effect(() => {
-		if (!open || !draggedClosed || !contentElement) return;
+		if (!open || !contentElement) return;
 
-		draggedClosed = false;
 		contentElement.style.transform = '';
 		contentElement.style.transition = '';
 		contentElement.style.animation = '';

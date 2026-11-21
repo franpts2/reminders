@@ -28,6 +28,18 @@
 		if (contentElement) ref = contentElement;
 	});
 
+	// A drag leaves the panel translated off screen; clear that whenever the
+	// drawer opens so the built-in entrance animation can run again.
+	$effect(() => {
+		if (!sidebar.openMobile || !contentElement) return;
+
+		contentElement.style.transform = '';
+		contentElement.style.transition = '';
+		contentElement.style.animation = '';
+		contentElement.style.willChange = '';
+		contentElement.style.userSelect = '';
+	});
+
 	$effect(() => {
 		if (!contentElement) return;
 
