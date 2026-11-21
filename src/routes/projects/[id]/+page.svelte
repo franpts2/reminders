@@ -17,7 +17,12 @@
 	let { data, form }: Props = $props();
 
 	let scanning = $state(false);
+	let removed = $state<string[]>([]);
 	const seen = new SeenTracker();
+
+	const reminders = $derived(
+		data.reminders.filter((reminder: any) => !removed.includes(reminder.id))
+	);
 
 	const latestScanAt = $derived(
 		data.latestScan ? parseTimestamp(data.latestScan.started_at) : 0
@@ -34,6 +39,8 @@
 	}
 
 	async function snooze(reminderId: string, days: number) {
+		removed = [...removed, reminderId];
+
 		const result = await submitAction('?/snoozeReminder', {
 			reminderId,
 			days: String(days)
@@ -44,14 +51,18 @@
 				action: { label: 'Undo', onClick: () => restore(reminderId) }
 			});
 		} else {
+			removed = removed.filter((removedId) => removedId !== reminderId);
 			toast.error('Could not snooze that reminder');
 		}
 	}
 
 	async function dismiss(reminderId: string) {
+		removed = [...removed, reminderId];
+
 		const result = await submitAction('?/dismissReminder', { reminderId });
 
 		if (result.type !== 'success') {
+			removed = removed.filter((removedId) => removedId !== reminderId);
 			toast.error('Could not dismiss that reminder');
 			return;
 		}
@@ -65,11 +76,14 @@
 	}
 
 	async function restore(reminderId: string) {
+		removed = removed.filter((removedId) => removedId !== reminderId);
+
 		const result = await submitAction('?/restoreReminder', { reminderId });
 
 		if (result.type === 'success') {
 			toast.success('Reminder restored');
 		} else {
+			removed = [...removed, reminderId];
 			toast.error('Could not restore that reminder');
 		}
 	}
@@ -149,16 +163,16 @@
 	<section>
 		<div class="flex items-baseline justify-between">
 			<h2 class="text-sm font-semibold text-foreground">Open reminders</h2>
-			<span class="text-xs tabular-nums text-muted-foreground">{data.reminders.length}</span>
+			<span class="text-xs tabular-nums text-muted-foreground">{reminders.length}</span>
 		</div>
 
-		{#if data.reminders.length === 0}
+		{#if reminders.length === 0}
 			<p class="mt-2 text-sm text-muted-foreground">
 				No open reminders. Run a scan to check for stale issues and PRs.
 			</p>
 		{:else}
 			<ul class="mt-2">
-				{#each data.reminders as reminder (reminder.id)}
+				{#each reminders as reminder (reminder.id)}
 					{@const unread = seen.isUnread(reminder)}
 					<ReminderRow
 						{reminder}
