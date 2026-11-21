@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as Sheet from "$lib/components/ui/sheet/index.js";
+	import { attachDragToClose } from "$lib/actions/drag-to-close.js";
 	import { cn, type WithElementRef } from "$lib/utils.js";
 	import { SIDEBAR_WIDTH_MOBILE } from "./constants.js";
 	import { useSidebar } from "./context.svelte.js";
@@ -20,6 +21,34 @@
 	} = $props();
 
 	const sidebar = useSidebar();
+
+	let contentElement = $state.raw<HTMLDivElement | null>(null);
+
+	$effect(() => {
+		if (contentElement) ref = contentElement;
+	});
+
+	// A drag leaves the panel translated off screen; clear that whenever the
+	// drawer opens so the built-in entrance animation can run again.
+	$effect(() => {
+		if (!sidebar.openMobile || !contentElement) return;
+
+		contentElement.style.transform = '';
+		contentElement.style.transition = '';
+		contentElement.style.animation = '';
+		contentElement.style.willChange = '';
+		contentElement.style.userSelect = '';
+	});
+
+	$effect(() => {
+		if (!contentElement) return;
+
+		return attachDragToClose(contentElement, {
+			axis: 'x',
+			direction: side === 'right' ? 1 : -1,
+			onClose: () => sidebar.setOpenMobile(false)
+		});
+	});
 </script>
 
 {#if collapsible === "none"}
@@ -36,7 +65,7 @@
 {:else if sidebar.isMobile}
 	<Sheet.Root bind:open={() => sidebar.openMobile, (v) => sidebar.setOpenMobile(v)} {...restProps}>
 		<Sheet.Content
-			bind:ref
+			bind:ref={contentElement}
 			data-sidebar="sidebar"
 			data-slot="sidebar"
 			data-mobile="true"

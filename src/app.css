@@ -120,6 +120,19 @@
 		@apply border-border outline-ring/50;
 	}
 
+	html {
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	a,
+	button,
+	[role='button'],
+	input,
+	select,
+	textarea {
+		touch-action: manipulation;
+	}
+
 	body {
 		@apply bg-background text-foreground antialiased;
 	}
