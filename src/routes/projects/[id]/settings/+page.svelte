@@ -159,7 +159,9 @@
 									max="365"
 									required
 									readonly={unavailable}
-									class={unavailable ? 'h-8 w-20 text-sm opacity-60' : 'h-8 w-20 text-sm'}
+									class={unavailable
+										? 'h-9 w-20 opacity-60 md:h-8'
+										: 'h-9 w-20 md:h-8'}
 									value={config.threshold_days}
 								/>
 								<span class="text-xs text-muted-foreground">days</span>
