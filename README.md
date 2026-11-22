@@ -5,6 +5,7 @@ Know what needs attention, without opening GitHub.
 <p align="left">
   <a href="https://reminders.franciscapt.dev"><img src="https://img.shields.io/badge/live-reminders.franciscapt.dev-FF3D81?style=flat-square" alt="Live site"></a>
   <a href="https://github.com/franpts2/reminders/actions/workflows/deploy.yml"><img src="https://github.com/franpts2/reminders/actions/workflows/deploy.yml/badge.svg" alt="CI status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/MIT-green?style=flat-square" alt="MIT license"></a>
 </p>
 
 <p align="left">
@@ -207,7 +208,7 @@ wrangler.toml
 
 ## License
 
-No license has been added to this repository yet, so all rights reserved. Add a `LICENSE` file before reusing the code.
+MIT © 2026 Francisca Portugal. See [LICENSE](LICENSE).
 
 ---
 
