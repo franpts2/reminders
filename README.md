@@ -4,7 +4,7 @@ Know what needs attention, without opening GitHub.
 
 <p align="left">
   <a href="https://reminders.franciscapt.dev"><img src="https://img.shields.io/badge/live-reminders.franciscapt.dev-FF3D81?style=flat-square" alt="Live site"></a>
-  <a href="https://github.com/franpts2/github-pm-reminders/actions/workflows/deploy.yml"><img src="https://github.com/franpts2/github-pm-reminders/actions/workflows/deploy.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/franpts2/reminders/actions/workflows/deploy.yml"><img src="https://github.com/franpts2/reminders/actions/workflows/deploy.yml/badge.svg" alt="CI status"></a>
 </p>
 
 <p align="left">
@@ -61,8 +61,8 @@ Before the first run:
 Then:
 
 ```bash
-git clone git@github.com:franpts2/github-pm-reminders.git
-cd github-pm-reminders
+git clone git@github.com:franpts2/reminders.git
+cd reminders
 npm install
 npm run db:migrate:local
 npm run dev
