@@ -292,8 +292,8 @@
 
 <div class="flex flex-col">
 	<div
-		bind:clientHeight={toolbarHeight}
-		class="sticky top-14 z-[1] flex flex-wrap items-center gap-2 border-b bg-background/90 px-4 py-2.5 backdrop-blur-sm"
+		bind:offsetHeight={toolbarHeight}
+		class="sticky top-14 z-[2] flex flex-wrap items-center gap-2 border-b bg-background/90 px-4 py-2.5 backdrop-blur-sm"
 	>
 		<p class="text-xs text-muted-foreground">
 			<span class="tabular-nums">{filtered.length}</span> open
@@ -390,7 +390,7 @@
 					<h2
 						id="group-{group.key}"
 						style:top="calc(3.5rem + {toolbarHeight}px)"
-						class="sticky z-0 flex items-center gap-2 border-b bg-muted/90 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground backdrop-blur-sm"
+						class="sticky z-[1] flex items-center gap-2 border-b bg-muted/90 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground backdrop-blur-sm"
 					>
 						{group.label}
 						<span class="tabular-nums text-muted-foreground/70">{group.items.length}</span>
