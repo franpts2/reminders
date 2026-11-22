@@ -6,7 +6,7 @@ declare global {
 		interface Platform {
 			env: {
 				DB: D1Database;
-				KV: KVNamespace;
+				ASSETS: Fetcher;
 				GITHUB_CLIENT_ID: string;
 				APP_URL: string;
 				GITHUB_CLIENT_SECRET: string;

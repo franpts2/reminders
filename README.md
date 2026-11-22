@@ -1,8 +1,9 @@
-# GitHub PM Reminders
+# Reminders
 
 An inbox for the work a project manager has to chase: issues that were handed out but never started, pull requests waiting on review, approvals that never merged, and work that has gone quiet.
 
-Built with SvelteKit on Cloudflare Workers, with D1 for state.
+Built with SvelteKit on Cloudflare Workers, with D1 for state. Deployed at
+https://reminders.franciscaportugal2005.workers.dev.
 
 ## What it does
 
@@ -68,8 +69,11 @@ npm install
 ### 2. Create a GitHub OAuth app
 
 - GitHub → Settings → Developer settings → OAuth Apps → New OAuth App
-- Application name: `GitHub PM Reminders`
-- Authorization callback URL: `http://localhost:5173/auth/callback`
+- Application name: `Reminders`
+- Authorization callback URL: `http://localhost:5173/auth/callback` for local
+  development. A deployment needs `${APP_URL}/auth/callback` instead, e.g.
+  `https://reminders.<your-subdomain>.workers.dev/auth/callback`; create a
+  second OAuth app if you want both.
 - Copy the **Client ID** and **Client Secret**
 
 ### 3. Create a D1 database
@@ -118,11 +122,20 @@ placeholder or does not match a real OAuth app.
 
 ## Deployment
 
+The Worker is named `reminders` in `wrangler.toml`, so it deploys to
+`https://reminders.<your-subdomain>.workers.dev`. Set `APP_URL` to that origin
+and register `${APP_URL}/auth/callback` on the GitHub OAuth app before signing
+in.
+
 ```bash
 npm run build
 npm run db:migrate:prod
 npm run deploy
 ```
+
+Run `npm run build` first: `npm run deploy` uploads whatever is already in
+`.svelte-kit/cloudflare`. Secrets belong to the Worker, not to the repository,
+so re-add them with `wrangler secret put` if you rename or recreate it.
 
 ## Scheduled scans
 
