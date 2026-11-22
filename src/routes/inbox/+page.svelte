@@ -97,7 +97,9 @@
 
 	const sorted = $derived(
 		[...filtered].sort((a, b) => {
-			const difference = parseTimestamp(a.created_at) - parseTimestamp(b.created_at);
+			const difference =
+				parseTimestamp(a.stale_since ?? a.created_at) -
+				parseTimestamp(b.stale_since ?? b.created_at);
 			return sortOrder === 'newest' ? -difference : difference;
 		})
 	);
@@ -111,7 +113,7 @@
 		};
 
 		for (const reminder of sorted) {
-			const age = now - parseTimestamp(reminder.created_at);
+			const age = now - parseTimestamp(reminder.stale_since ?? reminder.created_at);
 			if (age >= 7 * DAY_MS) buckets.older.push(reminder);
 			else if (age >= DAY_MS) buckets.week.push(reminder);
 			else buckets.today.push(reminder);

@@ -8,6 +8,8 @@ export interface ReminderCandidate {
 	githubUrl: string;
 	title: string;
 	assignee: string | null;
+	/** When the condition this reminder describes started; drives the age column. */
+	staleSince: string;
 	message: string;
 }
 
@@ -109,6 +111,7 @@ export function evaluateAssignedNotStarted(
 			githubUrl: issue.html_url,
 			title: issue.title,
 			assignee: formatAssignee(issue),
+			staleSince: issue.created_at,
 			message: `Issue #${issue.number} has been assigned to ${formatAssignee(issue)} for ${Math.floor(daysSince(issue.created_at))} days but has not started.`
 		});
 	}
@@ -133,6 +136,7 @@ export function evaluatePrOpenTooLong(
 			githubUrl: pr.html_url,
 			title: pr.title,
 			assignee: formatAssignee(pr),
+			staleSince: pr.created_at,
 			message: `PR #${pr.number} has been open for ${Math.floor(daysSince(pr.created_at))} days.`
 		});
 	}
@@ -175,6 +179,7 @@ export function evaluatePrChangesRequested(
 			githubUrl: pr.html_url,
 			title: pr.title,
 			assignee: formatAssignee(pr),
+			staleSince: latest.submitted_at,
 			message: `PR #${pr.number} had changes requested by ${latest.user.login} ${Math.floor(daysSince(latest.submitted_at))} days ago and no new commits have been pushed.`
 		});
 	}
@@ -238,6 +243,7 @@ export function evaluatePrNeedsReview(
 			githubUrl: pr.html_url,
 			title: pr.title,
 			assignee: formatAssignee(pr),
+			staleSince: since,
 			message
 		});
 	}
@@ -274,6 +280,7 @@ export function evaluatePrApprovedNotMerged(
 			githubUrl: pr.html_url,
 			title: pr.title,
 			assignee: formatAssignee(pr),
+			staleSince: approvedReview.submitted_at,
 			message: `PR #${pr.number} was approved ${Math.floor(daysSince(approvedReview.submitted_at))} days ago but has not been merged.`
 		});
 	}
@@ -308,6 +315,7 @@ export function evaluatePrConflicts(
 			githubUrl: pr.html_url,
 			title: pr.title,
 			assignee: formatAssignee(pr),
+			staleSince: firstSeen,
 			message: `PR #${pr.number} has had merge conflicts for ${Math.floor(daysSince(firstSeen))} days.`
 		});
 	}
@@ -332,6 +340,7 @@ export function evaluateNoActivity(
 			githubUrl: item.html_url,
 			title: item.title,
 			assignee: formatAssignee(item),
+			staleSince: item.updated_at,
 			message: `${'pull_request' in item ? 'PR' : 'Issue'} #${item.number} has had no activity for ${Math.floor(daysSince(item.updated_at))} days.`
 		});
 	}

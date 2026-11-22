@@ -304,7 +304,8 @@ export async function scanProject(db: D1Database, project: Project): Promise<Sca
 						title: candidate.title,
 						assignee: candidate.assignee,
 						message: candidate.message,
-						status: 'open'
+						status: 'open',
+						stale_since: candidate.staleSince
 					});
 					remindersCreated++;
 					continue;
@@ -316,11 +317,12 @@ export async function scanProject(db: D1Database, project: Project): Promise<Sca
 						github_url: candidate.githubUrl,
 						title: candidate.title,
 						assignee: candidate.assignee,
-						message: candidate.message
+						message: candidate.message,
+						stale_since: candidate.staleSince
 					});
 				} else if (existing.status === 'resolved') {
 					// The condition came back after being resolved, so surface it again.
-					await reopenReminder(db, existing.id);
+					await reopenReminder(db, existing.id, candidate.staleSince);
 					remindersCreated++;
 				}
 				// Dismissed reminders stay dismissed until the user restores them.

@@ -10,7 +10,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
 	import type { InboxReminder } from '$lib/db';
-	import { timeAgo } from '$lib/time';
+	import { ageSince, parseTimestamp, spellAge, timeUntil } from '$lib/time';
 	import { cn } from '$lib/utils';
 
 	interface Props {
@@ -53,6 +53,40 @@
 		"relative size-9 md:size-7 after:absolute after:-inset-1 after:content-['']";
 
 	const canSnooze = $derived(mode === 'snoozed' ? Boolean(onUnsnooze) : Boolean(onSnooze));
+
+	// The age column is the row's headline metric: how long this has been
+	// waiting. In the snoozed view the same slot counts down to the wake-up.
+	const wakeAt = $derived(mode === 'snoozed' ? reminder.snoozed_until : null);
+	// Rules store the timestamp their condition started (open since, updated
+	// since, first conflict, ...). Older rows fall back to insertion time.
+	const staleSince = $derived(reminder.stale_since ?? reminder.created_at);
+	const age = $derived(wakeAt ? timeUntil(wakeAt) : ageSince(staleSince));
+	const ageTone = $derived(
+		wakeAt || age.days < 3
+			? 'text-muted-foreground'
+			: age.days < 7
+				? 'text-foreground/75'
+				: 'text-foreground'
+	);
+	const ageLabel = $derived(
+		wakeAt ? `Wakes in ${spellAge(age)}` : `Stale for ${spellAge(age)}`
+	);
+
+	const dayFormat = new Intl.DateTimeFormat('en', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric'
+	});
+
+	function formatDay(value: string) {
+		return dayFormat.format(new Date(parseTimestamp(value)));
+	}
+
+	const ageTitle = $derived(
+		wakeAt
+			? `Back in the inbox ${formatDay(wakeAt)}`
+			: `Stale since ${formatDay(staleSince)}`
+	);
 
 	let snoozeOpen = $state(false);
 
@@ -358,16 +392,6 @@
 					<span aria-hidden="true">·</span>
 					<span>@{reminder.assignee}</span>
 				{/if}
-				<span aria-hidden="true">·</span>
-				{#if mode === 'snoozed' && reminder.snoozed_until}
-					<time datetime={reminder.snoozed_until} class="tabular-nums">
-						wakes {timeAgo(reminder.snoozed_until)}
-					</time>
-				{:else}
-					<time datetime={reminder.created_at} class="tabular-nums">
-						{timeAgo(reminder.created_at)}
-					</time>
-				{/if}
 			</div>
 		</div>
 
@@ -464,6 +488,18 @@
 				{/snippet}
 			</IconTooltip>
 		</div>
+
+		<time
+			datetime={wakeAt ?? staleSince}
+			title={ageTitle}
+			class={cn(
+				'shrink-0 self-start pt-1 font-mono text-xs font-medium leading-none',
+				ageTone
+			)}
+		>
+			<span class="sr-only">{ageLabel}</span>
+			<span aria-hidden="true">{wakeAt ? 'in ' : ''}{age.value}{age.unit}</span>
+		</time>
 	</div>
 
 	{#if mode !== 'snoozed' && onSnooze}

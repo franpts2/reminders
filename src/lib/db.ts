@@ -44,6 +44,7 @@ export interface Reminder {
 	message: string;
 	status: ReminderStatus;
 	created_at: string;
+	stale_since: string | null;
 	seen_at: string | null;
 	snoozed_until: string | null;
 	dismissed_at: string | null;
@@ -264,7 +265,7 @@ export async function getInboxReminders(
 			JOIN projects p ON p.id = r.project_id
 			WHERE p.created_by_user_id = ? AND r.status = 'open'
 				AND (r.snoozed_until IS NULL OR r.snoozed_until <= ?)
-			ORDER BY r.created_at ASC`
+			ORDER BY COALESCE(r.stale_since, r.created_at) ASC`
 		)
 		.bind(userId, now.toISOString())
 		.all<InboxReminder>();
@@ -527,7 +528,7 @@ export async function createReminder(
 	const id = generateId();
 	await db
 		.prepare(
-			'INSERT INTO reminders (id, project_id, type, github_item_number, github_item_type, github_url, title, assignee, message, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+			'INSERT INTO reminders (id, project_id, type, github_item_number, github_item_type, github_url, title, assignee, message, status, stale_since) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 		)
 		.bind(
 			id,
@@ -539,7 +540,8 @@ export async function createReminder(
 			reminder.title,
 			reminder.assignee,
 			reminder.message,
-			reminder.status
+			reminder.status,
+			reminder.stale_since
 		)
 		.run();
 	return {
@@ -556,11 +558,26 @@ export async function createReminder(
 export async function refreshReminder(
 	db: D1Database,
 	id: string,
-	updates: { github_url: string; title: string; assignee: string | null; message: string }
+	updates: {
+		github_url: string;
+		title: string;
+		assignee: string | null;
+		message: string;
+		stale_since: string;
+	}
 ): Promise<void> {
 	await db
-		.prepare('UPDATE reminders SET github_url = ?, title = ?, assignee = ?, message = ? WHERE id = ?')
-		.bind(updates.github_url, updates.title, updates.assignee, updates.message, id)
+		.prepare(
+			'UPDATE reminders SET github_url = ?, title = ?, assignee = ?, message = ?, stale_since = ? WHERE id = ?'
+		)
+		.bind(
+			updates.github_url,
+			updates.title,
+			updates.assignee,
+			updates.message,
+			updates.stale_since,
+			id
+		)
 		.run();
 }
 
@@ -621,14 +638,18 @@ export async function restoreReminder(db: D1Database, id: string): Promise<void>
 		.run();
 }
 
-export async function reopenReminder(db: D1Database, id: string): Promise<void> {
+export async function reopenReminder(
+	db: D1Database,
+	id: string,
+	staleSince: string
+): Promise<void> {
 	await db
 		.prepare(
 			`UPDATE reminders SET status = 'open', seen_at = NULL, snoozed_until = NULL,
-				dismissed_at = NULL, resolved_at = NULL
+				dismissed_at = NULL, resolved_at = NULL, stale_since = ?
 			WHERE id = ?`
 		)
-		.bind(id)
+		.bind(staleSince, id)
 		.run();
 }
 
