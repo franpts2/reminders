@@ -293,7 +293,7 @@
 <div class="flex flex-col">
 	<div
 		bind:offsetHeight={toolbarHeight}
-		class="sticky top-14 z-[2] flex flex-wrap items-center gap-2 border-b bg-background/90 px-4 py-2.5 backdrop-blur-sm"
+		class="sticky top-14 z-[2] flex flex-wrap items-center gap-2 border-b bg-background px-4 py-2.5"
 	>
 		<p class="text-xs text-muted-foreground">
 			<span class="tabular-nums">{filtered.length}</span> open
@@ -389,8 +389,8 @@
 				<section aria-labelledby="group-{group.key}">
 					<h2
 						id="group-{group.key}"
-						style:top="calc(3.5rem + {toolbarHeight}px)"
-						class="sticky z-[1] flex items-center gap-2 border-b bg-muted/90 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground backdrop-blur-sm"
+						style:top="calc(3.5rem + {toolbarHeight}px - 1px)"
+						class="sticky z-[1] flex items-center gap-2 border-b bg-muted px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
 					>
 						{group.label}
 						<span class="tabular-nums text-muted-foreground/70">{group.items.length}</span>
