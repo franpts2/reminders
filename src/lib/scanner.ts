@@ -17,6 +17,7 @@ import {
 	fetchRepoPullRequests,
 	fetchPullRequestReviews,
 	fetchLinkedPullRequestNumbers,
+	fetchCommitDate,
 	type GitHubIssue,
 	type GitHubPullRequest,
 	type GitHubReview
@@ -24,12 +25,14 @@ import {
 import {
 	evaluateAssignedNotStarted,
 	evaluatePrOpenTooLong,
-	evaluatePrNoReview,
+	evaluatePrNeedsReview,
+	evaluatePrChangesRequested,
 	evaluatePrApprovedNotMerged,
 	evaluateNoActivity,
 	evaluateStuckInColumn,
 	daysSince,
 	isIssueAssigned,
+	latestDecision,
 	type ReminderCandidate
 } from './reminders';
 
@@ -39,7 +42,7 @@ export interface ScanResult {
 	remindersResolved: number;
 }
 
-const LINKED_PR_FETCH_CONCURRENCY = 5;
+const GITHUB_FETCH_CONCURRENCY = 5;
 
 export async function scanProject(db: D1Database, project: Project): Promise<ScanResult> {
 	const scanLog = await createScanLog(db, {
@@ -78,6 +81,34 @@ export async function scanProject(db: D1Database, project: Project): Promise<Sca
 		const configs = await getReminderConfigsByProject(db, project.id);
 		const enabledConfigs = configs.filter((c) => c.enabled === 1);
 
+		// "Needs review" counts from the last push when a review has been
+		// superseded. The list endpoint has no commit date, so it is fetched
+		// only for the PRs that actually need it.
+		const needsReviewConfig = enabledConfigs.find((config) => config.type === 'pr_no_review');
+		const headCommitDates = new Map<number, string | null>();
+
+		if (needsReviewConfig) {
+			const prsToCheck = prs.filter((pr) => {
+				const latest = latestDecision(reviewsMap.get(pr.number) ?? []);
+				return (
+					latest !== null &&
+					latest.state !== 'APPROVED' &&
+					latest.commit_id !== pr.head.sha
+				);
+			});
+
+			for (let index = 0; index < prsToCheck.length; index += GITHUB_FETCH_CONCURRENCY) {
+				const batch = prsToCheck.slice(index, index + GITHUB_FETCH_CONCURRENCY);
+
+				await Promise.all(
+					batch.map(async (pr) => {
+						const date = await fetchCommitDate(owner, repo, pr.head.sha, user.access_token);
+						headCommitDates.set(pr.number, date);
+					})
+				);
+			}
+		}
+
 		// Only issues that the rule would otherwise flag need their timeline read.
 		const linkedPrsByIssue = new Map<number, number[] | null>();
 		const assignedConfig = enabledConfigs.find((config) => config.type === 'assigned_not_started');
@@ -87,8 +118,8 @@ export async function scanProject(db: D1Database, project: Project): Promise<Sca
 				(issue) => isIssueAssigned(issue) && daysSince(issue.created_at) >= assignedConfig.threshold_days
 			);
 
-			for (let index = 0; index < issuesToCheck.length; index += LINKED_PR_FETCH_CONCURRENCY) {
-				const batch = issuesToCheck.slice(index, index + LINKED_PR_FETCH_CONCURRENCY);
+			for (let index = 0; index < issuesToCheck.length; index += GITHUB_FETCH_CONCURRENCY) {
+				const batch = issuesToCheck.slice(index, index + GITHUB_FETCH_CONCURRENCY);
 
 				await Promise.all(
 					batch.map(async (issue) => {
@@ -125,7 +156,10 @@ export async function scanProject(db: D1Database, project: Project): Promise<Sca
 					candidates = evaluatePrOpenTooLong(prs, config);
 					break;
 				case 'pr_no_review':
-					candidates = evaluatePrNoReview(prs, reviewsMap, config);
+					candidates = evaluatePrNeedsReview(prs, reviewsMap, headCommitDates, config);
+					break;
+				case 'pr_changes_requested':
+					candidates = evaluatePrChangesRequested(prs, reviewsMap, config);
 					break;
 				case 'pr_approved_not_merged':
 					candidates = evaluatePrApprovedNotMerged(prs, reviewsMap, config);

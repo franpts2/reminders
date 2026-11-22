@@ -28,6 +28,46 @@ function formatAssignee(issue: GitHubIssue | GitHubPullRequest): string | null {
 	return null;
 }
 
+function reviewTimestamp(review: GitHubReview): number {
+	return review.submitted_at ? new Date(review.submitted_at).getTime() : 0;
+}
+
+function latestOf(reviews: GitHubReview[]): GitHubReview | null {
+	let latest: GitHubReview | null = null;
+
+	for (const review of reviews) {
+		if (!latest || reviewTimestamp(review) >= reviewTimestamp(latest)) {
+			latest = review;
+		}
+	}
+
+	return latest;
+}
+
+/**
+ * The current decision of each reviewer. A plain comment does not replace an
+ * earlier approval or change request, which matches how GitHub counts
+ * reviews. A dismissed review does replace the decision it belonged to.
+ */
+export function latestDecisionsByUser(reviews: GitHubReview[]): GitHubReview[] {
+	const byUser = new Map<string, GitHubReview>();
+
+	for (const review of reviews) {
+		if (review.state === 'PENDING' || review.state === 'COMMENTED') continue;
+
+		const existing = byUser.get(review.user.login);
+		if (!existing || reviewTimestamp(review) >= reviewTimestamp(existing)) {
+			byUser.set(review.user.login, review);
+		}
+	}
+
+	return [...byUser.values()];
+}
+
+export function latestDecision(reviews: GitHubReview[]): GitHubReview | null {
+	return latestOf(latestDecisionsByUser(reviews));
+}
+
 export function evaluateAssignedNotStarted(
 	issues: GitHubIssue[],
 	config: ReminderConfig,
@@ -100,7 +140,13 @@ export function evaluatePrOpenTooLong(
 	return candidates;
 }
 
-export function evaluatePrNoReview(
+/**
+ * Changes requested, and the author has not pushed since. The moment a commit
+ * lands on top of the review, this reminder resolves and "needs review"
+ * takes over instead, so the inbox moves from poking the author to poking
+ * the reviewer.
+ */
+export function evaluatePrChangesRequested(
 	prs: GitHubPullRequest[],
 	reviewsMap: Map<number, GitHubReview[]>,
 	config: ReminderConfig
@@ -110,8 +156,17 @@ export function evaluatePrNoReview(
 
 	for (const pr of prs) {
 		const reviews = reviewsMap.get(pr.number) || [];
-		if (reviews.length > 0) continue;
-		if (daysSince(pr.created_at) < threshold) continue;
+		const changesRequested = latestDecisionsByUser(reviews).filter(
+			(review) => review.state === 'CHANGES_REQUESTED'
+		);
+		const latest = latestOf(changesRequested);
+
+		if (!latest?.submitted_at) continue;
+
+		// A different head commit means the author responded. Resolving here
+		// lets the "needs review" rule pick the PR up with a fresh clock.
+		if (latest.commit_id !== pr.head.sha) continue;
+		if (daysSince(latest.submitted_at) < threshold) continue;
 
 		candidates.push({
 			type: config.type,
@@ -120,7 +175,70 @@ export function evaluatePrNoReview(
 			githubUrl: pr.html_url,
 			title: pr.title,
 			assignee: formatAssignee(pr),
-			message: `PR #${pr.number} has been open for ${Math.floor(daysSince(pr.created_at))} days with no review.`
+			message: `PR #${pr.number} had changes requested by ${latest.user.login} ${Math.floor(daysSince(latest.submitted_at))} days ago and no new commits have been pushed.`
+		});
+	}
+
+	return candidates;
+}
+
+/**
+ * Waiting on a reviewer: either the PR has never had a decisive review, or
+ * changes were requested and the author has pushed since. PRs whose latest
+ * decision is an approval are handled by "approved but not merged".
+ */
+export function evaluatePrNeedsReview(
+	prs: GitHubPullRequest[],
+	reviewsMap: Map<number, GitHubReview[]>,
+	headCommitDates: Map<number, string | null>,
+	config: ReminderConfig
+): ReminderCandidate[] {
+	const threshold = config.threshold_days;
+	const candidates: ReminderCandidate[] = [];
+
+	for (const pr of prs) {
+		// A draft is still work in progress, so nobody owes it a review yet.
+		if (pr.draft) continue;
+
+		const reviews = reviewsMap.get(pr.number) || [];
+		const decisions = latestDecisionsByUser(reviews);
+		const changesRequested = decisions.filter((review) => review.state === 'CHANGES_REQUESTED');
+		const latestChanges = latestOf(changesRequested);
+
+		let since: string;
+		let message: string;
+
+		if (latestChanges) {
+			// Changes requested on the current head is the author's turn.
+			if (latestChanges.commit_id === pr.head.sha) continue;
+
+			since =
+				headCommitDates.get(pr.number) ?? latestChanges.submitted_at ?? pr.created_at;
+			message = `PR #${pr.number} had changes requested and was updated ${Math.floor(daysSince(since))} days ago; it is waiting to be re-reviewed.`;
+		} else if (decisions.some((review) => review.state === 'APPROVED')) {
+			// An approval means the next move is a merge, not another review.
+			continue;
+		} else if (decisions.some((review) => review.state === 'DISMISSED')) {
+			since = headCommitDates.get(pr.number) ?? pr.updated_at;
+			message = `PR #${pr.number} is waiting for a new review after the previous one was dismissed.`;
+		} else {
+			const lastReview = latestOf(reviews.filter((review) => review.state !== 'PENDING'));
+			since = lastReview?.submitted_at ?? pr.created_at;
+			message = reviews.length
+				? `PR #${pr.number} has had no review decision for ${Math.floor(daysSince(since))} days.`
+				: `PR #${pr.number} has been open for ${Math.floor(daysSince(since))} days with no review.`;
+		}
+
+		if (daysSince(since) < threshold) continue;
+
+		candidates.push({
+			type: config.type,
+			githubItemNumber: pr.number,
+			githubItemType: 'pr',
+			githubUrl: pr.html_url,
+			title: pr.title,
+			assignee: formatAssignee(pr),
+			message
 		});
 	}
 
@@ -137,11 +255,16 @@ export function evaluatePrApprovedNotMerged(
 
 	for (const pr of prs) {
 		const reviews = reviewsMap.get(pr.number) || [];
-		const approvedReview = reviews
-			.filter((r) => r.state === 'APPROVED')
-			.sort((a, b) => new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime())[0];
+		const decisions = latestDecisionsByUser(reviews);
 
-		if (!approvedReview || !approvedReview.submitted_at) continue;
+		// A later change request overrides an earlier approval.
+		if (decisions.some((review) => review.state === 'CHANGES_REQUESTED')) continue;
+
+		const approvedReview = latestOf(
+			decisions.filter((review) => review.state === 'APPROVED')
+		);
+
+		if (!approvedReview?.submitted_at) continue;
 		if (daysSince(approvedReview.submitted_at) < threshold) continue;
 
 		candidates.push({

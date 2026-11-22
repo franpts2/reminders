@@ -141,9 +141,17 @@ export const REMINDER_TYPES = [
 	},
 	{
 		key: 'pr_no_review',
-		label: 'PR with no review',
-		short_label: 'No review',
-		description: 'A pull request has been open with no review for longer than the threshold.'
+		label: 'Needs review',
+		short_label: 'Needs review',
+		description:
+			'A pull request is waiting for a first review, or for a re-review after new commits were pushed.'
+	},
+	{
+		key: 'pr_changes_requested',
+		label: 'Changes requested',
+		short_label: 'Changes requested',
+		description:
+			'A pull request has changes requested and the author has not pushed since.'
 	},
 	{
 		key: 'pr_approved_not_merged',

@@ -46,7 +46,12 @@
 		{
 			title: 'Pull requests',
 			description: 'Reviews, merges and PRs that are sitting too long.',
-			types: ['pr_open_too_long', 'pr_no_review', 'pr_approved_not_merged']
+			types: [
+				'pr_open_too_long',
+				'pr_no_review',
+				'pr_changes_requested',
+				'pr_approved_not_merged'
+			]
 		},
 		{
 			title: 'Activity',
