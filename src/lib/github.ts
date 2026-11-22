@@ -51,6 +51,7 @@ async function githubFetch<T>(url: string, accessToken: string): Promise<T> {
 		headers: {
 			Authorization: `Bearer ${accessToken}`,
 			Accept: 'application/vnd.github+json',
+			'User-Agent': 'reminders',
 			'X-GitHub-Api-Version': '2022-11-28'
 		}
 	});

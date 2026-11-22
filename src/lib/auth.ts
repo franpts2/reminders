@@ -87,6 +87,7 @@ export async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> 
 		headers: {
 			Authorization: `Bearer ${accessToken}`,
 			Accept: 'application/vnd.github+json',
+			'User-Agent': 'reminders',
 			'X-GitHub-Api-Version': '2022-11-28'
 		}
 	});
