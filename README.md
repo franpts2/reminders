@@ -21,7 +21,8 @@ Built with SvelteKit on Cloudflare Workers, with D1 for state.
 - **The left bar** is teal when a reminder appeared in the most recent scan or is still unread, and muted when it was carried over and has been seen.
 - **Seen** means “was on screen for a moment”, not “the inbox was opened”.
 - **Keyboard**: `j` / `k` move, `Enter` opens on GitHub, `d` dismisses, `s` snoozes three days, `Escape` clears the selection.
-- **Touch**: swipe a reminder left to dismiss or right to snooze three days; in Snoozed a right swipe brings it back. The snooze button opens a bottom sheet with 1 day, 3 days and 1 week, and the mobile sidebar closes with a left drag.
+- **Touch**: swipe a reminder left to dismiss or right to snooze three days; in Snoozed a right swipe brings it back. The mobile sidebar closes with a left drag.
+- **Mouse**: hover a reminder for dismiss, snooze (a day, three days or a week) and open-on-GitHub actions.
 
 ## Reminder rules
 

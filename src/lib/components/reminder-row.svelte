@@ -6,7 +6,6 @@
 	import GitPullRequestIcon from '@lucide/svelte/icons/git-pull-request';
 	import XIcon from '@lucide/svelte/icons/x';
 	import IconTooltip from '$lib/components/icon-tooltip.svelte';
-	import SnoozeSheet from '$lib/components/snooze-sheet.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
 	import type { InboxReminder } from '$lib/db';
@@ -50,7 +49,7 @@
 	const actionsVisibility =
 		'transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100';
 	const touchTarget =
-		"relative size-9 md:size-7 after:absolute after:-inset-1 after:content-['']";
+		"relative size-7 after:absolute after:-inset-1 after:content-['']";
 
 	const canSnooze = $derived(mode === 'snoozed' ? Boolean(onUnsnooze) : Boolean(onSnooze));
 
@@ -87,8 +86,6 @@
 			? `Back in the inbox ${formatDay(wakeAt)}`
 			: `Stale since ${formatDay(staleSince)}`
 	);
-
-	let snoozeOpen = $state(false);
 
 	// A row counts as read once it has actually been on screen, not the moment
 	// the inbox opens, so the unread bar means something.
@@ -300,10 +297,6 @@
 			event.stopPropagation();
 		}
 	}
-
-	function selectSnooze(days: number) {
-		onSnooze?.(reminder.id, days);
-	}
 </script>
 
 <li
@@ -395,7 +388,12 @@
 			</div>
 		</div>
 
-		<div class={cn('flex h-5 shrink-0 items-center gap-2 md:gap-0.5', actionsVisibility)}>
+		<div
+			class={cn(
+				'hidden h-5 shrink-0 items-center gap-2 md:gap-0.5 [@media(hover:hover)]:flex',
+				actionsVisibility
+			)}
+		>
 			<IconTooltip label="Dismiss">
 				{#snippet children({ props })}
 					<Button
@@ -427,46 +425,34 @@
 					{/snippet}
 				</IconTooltip>
 			{:else}
-				<Button
-					variant="ghost"
-					size="icon"
-					class={cn(touchTarget, 'text-muted-foreground md:hidden')}
-					aria-label="Snooze reminder"
-					onclick={() => (snoozeOpen = true)}
-				>
-					<ClockIcon class="size-4" />
-				</Button>
-
-				<div class="hidden md:block">
-					<IconTooltip label="Snooze">
-						{#snippet children({ props })}
-							<DropdownMenu.Root>
-								<DropdownMenu.Trigger
-									{...props}
-									class={buttonVariants({
-										variant: 'ghost',
-										size: 'icon',
-										class: cn(touchTarget, 'text-muted-foreground')
-									})}
-									aria-label="Snooze reminder"
+				<IconTooltip label="Snooze">
+					{#snippet children({ props })}
+						<DropdownMenu.Root>
+							<DropdownMenu.Trigger
+								{...props}
+								class={buttonVariants({
+									variant: 'ghost',
+									size: 'icon',
+									class: cn(touchTarget, 'text-muted-foreground')
+								})}
+								aria-label="Snooze reminder"
+							>
+								<ClockIcon class="size-4" />
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Content align="end" class="w-40">
+								<DropdownMenu.Item onSelect={() => onSnooze?.(reminder.id, 1)}
+									>For 1 day</DropdownMenu.Item
 								>
-									<ClockIcon class="size-4" />
-								</DropdownMenu.Trigger>
-								<DropdownMenu.Content align="end" class="w-40">
-									<DropdownMenu.Item onSelect={() => onSnooze?.(reminder.id, 1)}
-										>For 1 day</DropdownMenu.Item
-									>
-									<DropdownMenu.Item onSelect={() => onSnooze?.(reminder.id, 3)}
-										>For 3 days</DropdownMenu.Item
-									>
-									<DropdownMenu.Item onSelect={() => onSnooze?.(reminder.id, 7)}
-										>For 1 week</DropdownMenu.Item
-									>
-								</DropdownMenu.Content>
-							</DropdownMenu.Root>
-						{/snippet}
-					</IconTooltip>
-				</div>
+								<DropdownMenu.Item onSelect={() => onSnooze?.(reminder.id, 3)}
+									>For 3 days</DropdownMenu.Item
+								>
+								<DropdownMenu.Item onSelect={() => onSnooze?.(reminder.id, 7)}
+									>For 1 week</DropdownMenu.Item
+								>
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
+					{/snippet}
+				</IconTooltip>
 			{/if}
 
 			<IconTooltip label="Open on GitHub">
@@ -501,8 +487,4 @@
 			<span aria-hidden="true">{wakeAt ? 'in ' : ''}{age.value}{age.unit}</span>
 		</time>
 	</div>
-
-	{#if mode !== 'snoozed' && onSnooze}
-		<SnoozeSheet bind:open={snoozeOpen} onSelect={selectSnooze} />
-	{/if}
 </li>
