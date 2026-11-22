@@ -50,7 +50,8 @@
 				'pr_open_too_long',
 				'pr_no_review',
 				'pr_changes_requested',
-				'pr_approved_not_merged'
+				'pr_approved_not_merged',
+				'pr_conflicts'
 			]
 		},
 		{

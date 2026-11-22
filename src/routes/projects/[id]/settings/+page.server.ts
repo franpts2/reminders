@@ -7,6 +7,7 @@ import {
 	getRecentScansByProject,
 	updateReminderConfig,
 	resolveRemindersByType,
+	deleteReminderConditionsByType,
 	deleteProject,
 	REMINDER_TYPES
 } from '$lib/db';
@@ -95,9 +96,11 @@ export const actions: Actions = {
 				started_definition: update.started
 			});
 
-			// A disabled rule should not leave its reminders sitting in the inbox.
+			// A disabled rule should not leave its reminders sitting in the
+			// inbox, and re-enabling it should start its clocks from scratch.
 			if (update.enabled === 0) {
 				await resolveRemindersByType(db, project.id, update.type);
+				await deleteReminderConditionsByType(db, project.id, update.type);
 			}
 		}
 

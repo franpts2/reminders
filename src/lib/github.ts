@@ -109,6 +109,36 @@ export async function fetchPullRequestReviews(
 	return reviews;
 }
 
+export type PullRequestMergeability = 'conflicting' | 'clean' | 'unknown';
+
+/**
+ * Mergeability is only on the single-PR endpoint, and GitHub computes it in
+ * the background, so the first read after a push can still be unknown.
+ * `dirty` is the documented GraphQL value for a merge conflict; the REST
+ * field returns the same string lowercased.
+ */
+export async function fetchPullRequestMergeability(
+	owner: string,
+	repo: string,
+	prNumber: number,
+	accessToken: string
+): Promise<PullRequestMergeability> {
+	try {
+		const pr = await githubFetch<{
+			mergeable: boolean | null;
+			mergeable_state: string | null;
+		}>(`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`, accessToken);
+
+		if (pr.mergeable_state === 'dirty') return 'conflicting';
+		if (pr.mergeable === true) return 'clean';
+		if (pr.mergeable === false) return 'conflicting';
+
+		return 'unknown';
+	} catch {
+		return 'unknown';
+	}
+}
+
 /**
  * The date of a commit, used as the clock for "waiting on a re-review".
  * Returns null when the commit is not readable (for example a deleted fork),

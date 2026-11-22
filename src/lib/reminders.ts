@@ -281,6 +281,40 @@ export function evaluatePrApprovedNotMerged(
 	return candidates;
 }
 
+/**
+ * Merge conflicts have no "since" timestamp on GitHub, so the scanner tracks
+ * the first scan that saw the conflict and passes it in.
+ */
+export function evaluatePrConflicts(
+	prs: GitHubPullRequest[],
+	conflictFirstSeen: Map<number, string>,
+	config: ReminderConfig
+): ReminderCandidate[] {
+	const threshold = config.threshold_days;
+	const candidates: ReminderCandidate[] = [];
+
+	for (const pr of prs) {
+		// A draft is not heading for a merge yet, so conflicts are not urgent.
+		if (pr.draft) continue;
+
+		const firstSeen = conflictFirstSeen.get(pr.number);
+		if (!firstSeen) continue;
+		if (daysSince(firstSeen) < threshold) continue;
+
+		candidates.push({
+			type: config.type,
+			githubItemNumber: pr.number,
+			githubItemType: 'pr',
+			githubUrl: pr.html_url,
+			title: pr.title,
+			assignee: formatAssignee(pr),
+			message: `PR #${pr.number} has had merge conflicts for ${Math.floor(daysSince(firstSeen))} days.`
+		});
+	}
+
+	return candidates;
+}
+
 export function evaluateNoActivity(
 	items: (GitHubIssue | GitHubPullRequest)[],
 	config: ReminderConfig
