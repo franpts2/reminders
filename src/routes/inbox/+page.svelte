@@ -106,21 +106,24 @@
 
 	const groups = $derived.by(() => {
 		const now = Date.now();
-		const buckets: Record<'older' | 'week' | 'today', InboxReminder[]> = {
+		const buckets: Record<'older' | 'fortnight' | 'week' | 'today', InboxReminder[]> = {
 			older: [],
+			fortnight: [],
 			week: [],
 			today: []
 		};
 
 		for (const reminder of sorted) {
 			const age = now - parseTimestamp(reminder.stale_since ?? reminder.created_at);
-			if (age >= 7 * DAY_MS) buckets.older.push(reminder);
+			if (age >= 14 * DAY_MS) buckets.older.push(reminder);
+			else if (age >= 7 * DAY_MS) buckets.fortnight.push(reminder);
 			else if (age >= DAY_MS) buckets.week.push(reminder);
 			else buckets.today.push(reminder);
 		}
 
 		const bands = [
-			{ key: 'older', label: 'Over a week', items: buckets.older },
+			{ key: 'older', label: 'Over two weeks', items: buckets.older },
+			{ key: 'fortnight', label: 'Over a week', items: buckets.fortnight },
 			{ key: 'week', label: 'This week', items: buckets.week },
 			{ key: 'today', label: 'Today', items: buckets.today }
 		];
