@@ -395,7 +395,7 @@
 			</div>
 		</div>
 
-		<div class={cn('flex shrink-0 items-center gap-2 md:gap-0.5', actionsVisibility)}>
+		<div class={cn('flex h-5 shrink-0 items-center gap-2 md:gap-0.5', actionsVisibility)}>
 			<IconTooltip label="Dismiss">
 				{#snippet children({ props })}
 					<Button
@@ -493,7 +493,7 @@
 			datetime={wakeAt ?? staleSince}
 			title={ageTitle}
 			class={cn(
-				'shrink-0 self-start pt-1 font-mono text-xs font-medium leading-none',
+				'flex h-5 shrink-0 items-center font-mono text-xs font-medium leading-none',
 				ageTone
 			)}
 		>
