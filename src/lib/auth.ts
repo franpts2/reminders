@@ -1,4 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import { GITHUB_USER_AGENT } from './github';
 import { getUserByGithubId, createUser, updateUserAccessToken, type User } from './db';
 
 export interface GitHubUser {
@@ -87,12 +88,16 @@ export async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> 
 		headers: {
 			Authorization: `Bearer ${accessToken}`,
 			Accept: 'application/vnd.github+json',
-			'X-GitHub-Api-Version': '2022-11-28'
+			'X-GitHub-Api-Version': '2022-11-28',
+			'User-Agent': GITHUB_USER_AGENT
 		}
 	});
 
 	if (!response.ok) {
-		throw new Error(`Failed to fetch GitHub user: ${response.status}`);
+		const detail = await response.text().catch(() => '');
+		throw new Error(
+			`Failed to fetch GitHub user: ${response.status}${detail ? ` — ${detail.slice(0, 200)}` : ''}`
+		);
 	}
 
 	return (await response.json()) as GitHubUser;

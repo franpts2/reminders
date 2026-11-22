@@ -46,12 +46,17 @@ export interface GitHubTimelineEvent {
 	};
 }
 
+// GitHub's REST API rejects requests without a User-Agent; Workers' fetch does
+// not send one by default, so every call must set it explicitly.
+export const GITHUB_USER_AGENT = 'reminders';
+
 async function githubFetch<T>(url: string, accessToken: string): Promise<T> {
 	const response = await fetch(url, {
 		headers: {
 			Authorization: `Bearer ${accessToken}`,
 			Accept: 'application/vnd.github+json',
-			'X-GitHub-Api-Version': '2022-11-28'
+			'X-GitHub-Api-Version': '2022-11-28',
+			'User-Agent': GITHUB_USER_AGENT
 		}
 	});
 
