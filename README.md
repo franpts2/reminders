@@ -124,6 +124,29 @@ npm run db:migrate:prod
 npm run deploy
 ```
 
+## Continuous deployment
+
+Pushing to `main` runs `.github/workflows/deploy.yml`, which checks the
+project, builds it, applies pending D1 migrations and deploys the Worker.
+Pull requests to `main` run the same checks without deploying.
+
+Before the first automated deploy, configure the repository:
+
+1. Fill in the real `GITHUB_CLIENT_ID`, `APP_URL`, `database_id` and KV `id`
+   in `wrangler.toml` (the file currently contains placeholders).
+2. Create a Cloudflare API token with **Workers Scripts: Edit**, **D1: Edit**
+   and **Workers KV Storage: Edit** for the account, then add it as the
+   `CLOUDFLARE_API_TOKEN` repository secret.
+3. Add the account's ID as the `CLOUDFLARE_ACCOUNT_ID` repository secret.
+4. Optionally add the public URL as an `APP_URL` repository variable so the
+   deployment links to the live site.
+
+Set the production secrets (`GITHUB_CLIENT_SECRET`, `SESSION_SECRET`,
+`CRON_SECRET`) once with `wrangler secret put`; deploys do not touch them.
+
+The workflow runs in the `production` GitHub environment. Add required
+reviewers to that environment if deploys should need manual approval.
+
 ## Scheduled scans
 
 There are two ways to scan:
