@@ -93,7 +93,7 @@
 				>
 					<GitPullRequestIcon class="size-3.5" />
 				</span>
-				GitHub PM Reminders
+				Reminders
 			</a>
 			<div class="flex items-center gap-2">
 				<ThemeToggle />
@@ -109,5 +109,5 @@
 <Toaster />
 
 <svelte:head>
-	<title>{pageTitle ? `${pageTitle} · Reminders` : 'GitHub PM Reminders'}</title>
+	<title>{pageTitle ? `${pageTitle} · Reminders` : 'Reminders'}</title>
 </svelte:head>

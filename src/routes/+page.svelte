@@ -3,7 +3,7 @@
 </script>
 
 <div class="mx-auto flex max-w-2xl flex-1 flex-col justify-center px-4 py-16 text-center">
-	<p class="text-xs font-medium uppercase tracking-widest text-muted-foreground">GitHub PM Reminders</p>
+	<p class="text-xs font-medium uppercase tracking-widest text-muted-foreground">Reminders</p>
 	<h1 class="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
 		Know what needs attention, without opening GitHub.
 	</h1>

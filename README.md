@@ -1,4 +1,4 @@
-# GitHub PM Reminders
+# Reminders
 
 An inbox for the work a project manager has to chase: issues that were handed out but never started, pull requests waiting on review, approvals that never merged, and work that has gone quiet.
 
@@ -68,7 +68,7 @@ npm install
 ### 2. Create a GitHub OAuth app
 
 - GitHub → Settings → Developer settings → OAuth Apps → New OAuth App
-- Application name: `GitHub PM Reminders`
+- Application name: `Reminders`
 - Authorization callback URL: `http://localhost:5173/auth/callback`
 - Copy the **Client ID** and **Client Secret**
 
