@@ -2,7 +2,9 @@
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
+	import FolderGit2Icon from '@lucide/svelte/icons/folder-git-2';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SearchXIcon from '@lucide/svelte/icons/search-x';
 	import { toast } from 'svelte-sonner';
 	import MenuSelect from '$lib/components/menu-select.svelte';
@@ -20,6 +22,7 @@
 			reminders: InboxReminder[];
 			latestScan: { finished_at: string | null; started_at: string } | null;
 			reminderTypes: Array<{ key: string; short_label: string }>;
+			projects: Array<{ id: string }>;
 		};
 	}
 
@@ -360,18 +363,37 @@
 	</div>
 
 	{#if reminders.length === 0}
-		<Empty.Root class="border-0 py-20">
-			<Empty.Media variant="icon">
-				<InboxIcon />
-			</Empty.Media>
-			<Empty.Title>Inbox zero</Empty.Title>
-			<Empty.Description>
-				Nothing needs your attention.
-				{#if data.latestScan}
-					Last scanned {timeAgo(data.latestScan.finished_at ?? data.latestScan.started_at)}.
-				{/if}
-			</Empty.Description>
-		</Empty.Root>
+		{#if data.projects.length === 0}
+			<Empty.Root class="border-0 py-20">
+				<Empty.Media variant="icon">
+					<FolderGit2Icon />
+				</Empty.Media>
+				<Empty.Title>No projects yet</Empty.Title>
+				<Empty.Description>
+					You haven't created a project yet. Add one to start tracking its issues and pull
+					requests.
+				</Empty.Description>
+				<Empty.Content>
+					<Button href="/projects/new" size="sm">
+						<PlusIcon />
+						Create project
+					</Button>
+				</Empty.Content>
+			</Empty.Root>
+		{:else}
+			<Empty.Root class="border-0 py-20">
+				<Empty.Media variant="icon">
+					<InboxIcon />
+				</Empty.Media>
+				<Empty.Title>All caught up</Empty.Title>
+				<Empty.Description>
+					Nothing needs your attention.
+					{#if data.latestScan}
+						Last scanned {timeAgo(data.latestScan.finished_at ?? data.latestScan.started_at)}.
+					{/if}
+				</Empty.Description>
+			</Empty.Root>
+		{/if}
 	{:else if filtered.length === 0}
 		<Empty.Root class="border-0 py-20">
 			<Empty.Media variant="icon">
