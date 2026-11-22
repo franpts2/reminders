@@ -141,15 +141,29 @@ export const REMINDER_TYPES = [
 	},
 	{
 		key: 'pr_no_review',
-		label: 'PR with no review',
-		short_label: 'No review',
-		description: 'A pull request has been open with no review for longer than the threshold.'
+		label: 'Needs review',
+		short_label: 'Needs review',
+		description:
+			'A pull request is waiting for a first review, or for a re-review after new commits were pushed.'
+	},
+	{
+		key: 'pr_changes_requested',
+		label: 'Changes requested',
+		short_label: 'Changes requested',
+		description:
+			'A pull request has changes requested and the author has not pushed since.'
 	},
 	{
 		key: 'pr_approved_not_merged',
 		label: 'Approved but not merged',
 		short_label: 'Approved, unmerged',
 		description: 'A pull request has been approved but not merged for longer than the threshold.'
+	},
+	{
+		key: 'pr_conflicts',
+		label: 'Merge conflicts',
+		short_label: 'Conflicts',
+		description: 'A pull request has had unresolved merge conflicts for longer than the threshold.'
 	},
 	{
 		key: 'stuck_in_column',
@@ -356,6 +370,7 @@ export async function getOpenReminderCounts(
 export async function deleteProject(db: D1Database, projectId: string): Promise<void> {
 	await db.batch([
 		db.prepare('DELETE FROM reminders WHERE project_id = ?').bind(projectId),
+		db.prepare('DELETE FROM reminder_conditions WHERE project_id = ?').bind(projectId),
 		db.prepare('DELETE FROM reminder_configs WHERE project_id = ?').bind(projectId),
 		db.prepare('DELETE FROM scan_logs WHERE project_id = ?').bind(projectId),
 		db.prepare('DELETE FROM projects WHERE id = ?').bind(projectId)
@@ -397,6 +412,80 @@ export async function getReminderByItem(
 		.bind(projectId, type, githubItemNumber)
 		.first<Reminder>();
 	return result || null;
+}
+
+/**
+ * Tracks how long a stateful condition has been true when GitHub does not
+ * expose its start time (merge conflicts). The reminder itself is only
+ * created once the threshold passes.
+ */
+export async function getReminderConditions(
+	db: D1Database,
+	projectId: string,
+	type: string
+): Promise<Map<number, string>> {
+	const { results } = await db
+		.prepare(
+			`SELECT github_item_number, first_seen_at FROM reminder_conditions
+			WHERE project_id = ? AND type = ?`
+		)
+		.bind(projectId, type)
+		.all<{ github_item_number: number; first_seen_at: string }>();
+
+	return new Map((results || []).map((row) => [row.github_item_number, row.first_seen_at]));
+}
+
+export async function upsertReminderCondition(
+	db: D1Database,
+	projectId: string,
+	type: string,
+	githubItemNumber: number,
+	now = new Date()
+): Promise<void> {
+	await db
+		.prepare(
+			`INSERT INTO reminder_conditions (project_id, type, github_item_number, first_seen_at)
+			VALUES (?, ?, ?, ?)
+			ON CONFLICT(project_id, type, github_item_number) DO NOTHING`
+		)
+		.bind(projectId, type, githubItemNumber, now.toISOString())
+		.run();
+}
+
+// D1 allows 100 bound parameters per query; two are taken by project and type.
+const CONDITION_DELETE_BATCH_SIZE = 90;
+
+export async function deleteReminderConditions(
+	db: D1Database,
+	projectId: string,
+	type: string,
+	githubItemNumbers: number[]
+): Promise<void> {
+	const uniqueNumbers = [...new Set(githubItemNumbers)];
+
+	for (let start = 0; start < uniqueNumbers.length; start += CONDITION_DELETE_BATCH_SIZE) {
+		const batch = uniqueNumbers.slice(start, start + CONDITION_DELETE_BATCH_SIZE);
+		const placeholders = batch.map(() => '?').join(', ');
+
+		await db
+			.prepare(
+				`DELETE FROM reminder_conditions
+				WHERE project_id = ? AND type = ? AND github_item_number IN (${placeholders})`
+			)
+			.bind(projectId, type, ...batch)
+			.run();
+	}
+}
+
+export async function deleteReminderConditionsByType(
+	db: D1Database,
+	projectId: string,
+	type: string
+): Promise<void> {
+	await db
+		.prepare('DELETE FROM reminder_conditions WHERE project_id = ? AND type = ?')
+		.bind(projectId, type)
+		.run();
 }
 
 export async function getUnreadReminderCount(

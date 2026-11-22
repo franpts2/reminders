@@ -23,12 +23,14 @@ export interface GitHubPullRequest {
 	html_url: string;
 	node_id: string;
 	user: { login: string };
+	head: { sha: string; ref: string };
 }
 
 export interface GitHubReview {
 	id: number;
 	state: string;
 	submitted_at: string | null;
+	commit_id: string;
 	user: { login: string };
 }
 
@@ -83,16 +85,83 @@ export async function fetchRepoPullRequests(
 	);
 }
 
+const REVIEW_PAGE_SIZE = 100;
+const REVIEW_MAX_PAGES = 5;
+
 export async function fetchPullRequestReviews(
 	owner: string,
 	repo: string,
 	prNumber: number,
 	accessToken: string
 ): Promise<GitHubReview[]> {
-	return githubFetch<GitHubReview[]>(
-		`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/reviews`,
-		accessToken
-	);
+	const reviews: GitHubReview[] = [];
+
+	for (let page = 1; page <= REVIEW_MAX_PAGES; page++) {
+		const pageReviews = await githubFetch<GitHubReview[]>(
+			`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/reviews?per_page=${REVIEW_PAGE_SIZE}&page=${page}`,
+			accessToken
+		);
+
+		reviews.push(...pageReviews);
+		if (pageReviews.length < REVIEW_PAGE_SIZE) break;
+	}
+
+	return reviews;
+}
+
+export type PullRequestMergeability = 'conflicting' | 'clean' | 'unknown';
+
+/**
+ * Mergeability is only on the single-PR endpoint, and GitHub computes it in
+ * the background, so the first read after a push can still be unknown.
+ * `dirty` is the documented GraphQL value for a merge conflict; the REST
+ * field returns the same string lowercased.
+ */
+export async function fetchPullRequestMergeability(
+	owner: string,
+	repo: string,
+	prNumber: number,
+	accessToken: string
+): Promise<PullRequestMergeability> {
+	try {
+		const pr = await githubFetch<{
+			mergeable: boolean | null;
+			mergeable_state: string | null;
+		}>(`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`, accessToken);
+
+		if (pr.mergeable_state === 'dirty') return 'conflicting';
+		if (pr.mergeable === true) return 'clean';
+		if (pr.mergeable === false) return 'conflicting';
+
+		return 'unknown';
+	} catch {
+		return 'unknown';
+	}
+}
+
+/**
+ * The date of a commit, used as the clock for "waiting on a re-review".
+ * Returns null when the commit is not readable (for example a deleted fork),
+ * so callers can fall back to the last review instead of guessing.
+ */
+export async function fetchCommitDate(
+	owner: string,
+	repo: string,
+	sha: string,
+	accessToken: string
+): Promise<string | null> {
+	try {
+		const commit = await githubFetch<{
+			commit: {
+				committer: { date: string } | null;
+				author: { date: string } | null;
+			};
+		}>(`https://api.github.com/repos/${owner}/${repo}/commits/${sha}`, accessToken);
+
+		return commit.commit.committer?.date ?? commit.commit.author?.date ?? null;
+	} catch {
+		return null;
+	}
 }
 
 const TIMELINE_PAGE_SIZE = 100;

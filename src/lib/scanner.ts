@@ -10,6 +10,9 @@ import {
 	createScanLog,
 	finishScanLog,
 	getUserById,
+	getReminderConditions,
+	upsertReminderCondition,
+	deleteReminderConditions,
 	type Project
 } from './db';
 import {
@@ -17,19 +20,25 @@ import {
 	fetchRepoPullRequests,
 	fetchPullRequestReviews,
 	fetchLinkedPullRequestNumbers,
+	fetchCommitDate,
+	fetchPullRequestMergeability,
 	type GitHubIssue,
 	type GitHubPullRequest,
-	type GitHubReview
+	type GitHubReview,
+	type PullRequestMergeability
 } from './github';
 import {
 	evaluateAssignedNotStarted,
 	evaluatePrOpenTooLong,
-	evaluatePrNoReview,
+	evaluatePrNeedsReview,
+	evaluatePrChangesRequested,
 	evaluatePrApprovedNotMerged,
+	evaluatePrConflicts,
 	evaluateNoActivity,
 	evaluateStuckInColumn,
 	daysSince,
 	isIssueAssigned,
+	latestDecision,
 	type ReminderCandidate
 } from './reminders';
 
@@ -39,7 +48,45 @@ export interface ScanResult {
 	remindersResolved: number;
 }
 
-const LINKED_PR_FETCH_CONCURRENCY = 5;
+const GITHUB_FETCH_CONCURRENCY = 5;
+const MERGEABILITY_RETRY_DELAY_MS = 1000;
+
+async function fetchMergeabilityStates(
+	owner: string,
+	repo: string,
+	prs: GitHubPullRequest[],
+	accessToken: string
+): Promise<Map<number, PullRequestMergeability>> {
+	const states = new Map<number, PullRequestMergeability>();
+
+	const fetchBatch = async (batch: GitHubPullRequest[]) => {
+		await Promise.all(
+			batch.map(async (pr) => {
+				states.set(
+					pr.number,
+					await fetchPullRequestMergeability(owner, repo, pr.number, accessToken)
+				);
+			})
+		);
+	};
+
+	for (let index = 0; index < prs.length; index += GITHUB_FETCH_CONCURRENCY) {
+		await fetchBatch(prs.slice(index, index + GITHUB_FETCH_CONCURRENCY));
+	}
+
+	// GitHub computes mergeability lazily, so the first read after a push can
+	// still be unknown. Give it one second and retry just those PRs.
+	const unknown = prs.filter((pr) => states.get(pr.number) === 'unknown');
+	if (unknown.length > 0) {
+		await new Promise((resolve) => setTimeout(resolve, MERGEABILITY_RETRY_DELAY_MS));
+
+		for (let index = 0; index < unknown.length; index += GITHUB_FETCH_CONCURRENCY) {
+			await fetchBatch(unknown.slice(index, index + GITHUB_FETCH_CONCURRENCY));
+		}
+	}
+
+	return states;
+}
 
 export async function scanProject(db: D1Database, project: Project): Promise<ScanResult> {
 	const scanLog = await createScanLog(db, {
@@ -78,6 +125,81 @@ export async function scanProject(db: D1Database, project: Project): Promise<Sca
 		const configs = await getReminderConfigsByProject(db, project.id);
 		const enabledConfigs = configs.filter((c) => c.enabled === 1);
 
+		// "Needs review" counts from the last push when a review has been
+		// superseded. The list endpoint has no commit date, so it is fetched
+		// only for the PRs that actually need it.
+		const needsReviewConfig = enabledConfigs.find((config) => config.type === 'pr_no_review');
+		const headCommitDates = new Map<number, string | null>();
+
+		if (needsReviewConfig) {
+			const prsToCheck = prs.filter((pr) => {
+				const latest = latestDecision(reviewsMap.get(pr.number) ?? []);
+				return (
+					latest !== null &&
+					latest.state !== 'APPROVED' &&
+					latest.commit_id !== pr.head.sha
+				);
+			});
+
+			for (let index = 0; index < prsToCheck.length; index += GITHUB_FETCH_CONCURRENCY) {
+				const batch = prsToCheck.slice(index, index + GITHUB_FETCH_CONCURRENCY);
+
+				await Promise.all(
+					batch.map(async (pr) => {
+						const date = await fetchCommitDate(owner, repo, pr.head.sha, user.access_token);
+						headCommitDates.set(pr.number, date);
+					})
+				);
+			}
+		}
+
+		// Merge conflicts have no start time on GitHub, so track the first scan
+		// that saw one. Unknown mergeability keeps whatever was already known.
+		const conflictsConfig = enabledConfigs.find((config) => config.type === 'pr_conflicts');
+		let mergeability = new Map<number, PullRequestMergeability>();
+		const conflictFirstSeen = new Map<number, string>();
+
+		if (conflictsConfig) {
+			mergeability = await fetchMergeabilityStates(owner, repo, prs, user.access_token);
+
+			const tracked = await getReminderConditions(db, project.id, conflictsConfig.type);
+			const keep = new Set<number>();
+
+			for (const pr of prs) {
+				if (pr.draft) continue;
+
+				const state = mergeability.get(pr.number);
+				if (state === 'conflicting' || state === 'unknown') {
+					keep.add(pr.number);
+				}
+			}
+
+			const stale = [...tracked.keys()].filter((number) => !keep.has(number));
+			if (stale.length > 0) {
+				await deleteReminderConditions(db, project.id, conflictsConfig.type, stale);
+			}
+
+			const now = new Date();
+			for (const pr of prs) {
+				if (pr.draft) continue;
+				if (mergeability.get(pr.number) !== 'conflicting') continue;
+
+				const firstSeen = tracked.get(pr.number);
+				if (firstSeen) {
+					conflictFirstSeen.set(pr.number, firstSeen);
+				} else {
+					await upsertReminderCondition(
+						db,
+						project.id,
+						conflictsConfig.type,
+						pr.number,
+						now
+					);
+					conflictFirstSeen.set(pr.number, now.toISOString());
+				}
+			}
+		}
+
 		// Only issues that the rule would otherwise flag need their timeline read.
 		const linkedPrsByIssue = new Map<number, number[] | null>();
 		const assignedConfig = enabledConfigs.find((config) => config.type === 'assigned_not_started');
@@ -87,8 +209,8 @@ export async function scanProject(db: D1Database, project: Project): Promise<Sca
 				(issue) => isIssueAssigned(issue) && daysSince(issue.created_at) >= assignedConfig.threshold_days
 			);
 
-			for (let index = 0; index < issuesToCheck.length; index += LINKED_PR_FETCH_CONCURRENCY) {
-				const batch = issuesToCheck.slice(index, index + LINKED_PR_FETCH_CONCURRENCY);
+			for (let index = 0; index < issuesToCheck.length; index += GITHUB_FETCH_CONCURRENCY) {
+				const batch = issuesToCheck.slice(index, index + GITHUB_FETCH_CONCURRENCY);
 
 				await Promise.all(
 					batch.map(async (issue) => {
@@ -125,10 +247,16 @@ export async function scanProject(db: D1Database, project: Project): Promise<Sca
 					candidates = evaluatePrOpenTooLong(prs, config);
 					break;
 				case 'pr_no_review':
-					candidates = evaluatePrNoReview(prs, reviewsMap, config);
+					candidates = evaluatePrNeedsReview(prs, reviewsMap, headCommitDates, config);
+					break;
+				case 'pr_changes_requested':
+					candidates = evaluatePrChangesRequested(prs, reviewsMap, config);
 					break;
 				case 'pr_approved_not_merged':
 					candidates = evaluatePrApprovedNotMerged(prs, reviewsMap, config);
+					break;
+				case 'pr_conflicts':
+					candidates = evaluatePrConflicts(prs, conflictFirstSeen, config);
 					break;
 				case 'no_activity':
 					candidates = evaluateNoActivity([...pureIssues, ...prs], config);
@@ -145,6 +273,16 @@ export async function scanProject(db: D1Database, project: Project): Promise<Sca
 				// keep any existing reminder for it instead of resolving it.
 				for (const [issueNumber, linkedPrs] of linkedPrsByIssue) {
 					if (linkedPrs === null) stillMatches.add(issueNumber);
+				}
+			}
+
+			if (config.type === 'pr_conflicts') {
+				// Mergeability was still being computed, so do not assume the
+				// conflict is gone just because this scan could not read it.
+				for (const pr of prs) {
+					if (!pr.draft && mergeability.get(pr.number) === 'unknown') {
+						stillMatches.add(pr.number);
+					}
 				}
 			}
 

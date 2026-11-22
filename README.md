@@ -29,8 +29,10 @@ Built with SvelteKit on Cloudflare Workers, with D1 for state.
 | --- | --- |
 | Assigned but not started | An assigned issue has no linked PR and/or has not moved to In Progress |
 | PR open too long | A pull request has been open past the threshold |
-| PR with no review | A pull request has had no review past the threshold |
+| Needs review | A pull request is waiting for a first review, or a re-review after new commits, past the threshold |
+| Changes requested | A pull request has changes requested and the author has not pushed since |
 | Approved but not merged | An approved pull request has not been merged past the threshold |
+| Merge conflicts | A pull request has had unresolved merge conflicts past the threshold |
 | No activity | An issue or PR has had no activity past the threshold |
 | Stuck in project column | Shown but disabled: requires the GitHub Projects v2 API |
 
