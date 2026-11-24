@@ -12,6 +12,8 @@
 		"deploy": "wrangler deploy",
 		"db:migrate:local": "wrangler d1 migrations apply github-pm-reminders-db --local",
 		"db:migrate:prod": "wrangler d1 migrations apply github-pm-reminders-db --remote",
+		"db:seed:local": "node scripts/seed-dev.mjs",
+		"db:seed:reset": "node scripts/seed-dev.mjs --reset",
 		"check:oauth": "node scripts/check-oauth.mjs"
 	},
 	"devDependencies": {
