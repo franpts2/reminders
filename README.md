@@ -26,9 +26,9 @@ It is built for one person managing several repositories at once. GitHub access 
 
 ## Screenshot
 
-![Reminders sign-in screen](docs/screenshots/hero.png)
+![Reminders inbox showing open reminders from four projects, grouped by how long they have waited](docs/screenshots/inbox.png)
 
-The signed-out landing page. After signing in, the same shell becomes the inbox.
+Every project's work in one queue, grouped by how long it has been waiting and filterable by project and rule.
 
 ## Features
 
