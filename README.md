@@ -81,9 +81,9 @@ For screenshots or UI work, fill the inbox with fictional projects and reminders
 npm run db:seed:local
 ```
 
-Sign in once first, since the data belongs to the local user. The seed adds four fictional projects (`acme/storefront`, `acme/mobile`, `northwind/design-system`, `northwind/platform`) with open, snoozed, dismissed and resolved reminders, rule configs and scan history. Nothing about it uses real people or repositories.
+With `npm run dev` running, this calls the dev-only `POST /api/dev/seed` route, which inserts the demo rows through the same database helpers a real scan uses. Sign in once first, since the data belongs to the local user. The seed adds four fictional projects (`acme/storefront`, `acme/mobile`, `northwind/design-system`, `northwind/platform`) with open, snoozed, dismissed and resolved reminders, rule configs and scan history. Nothing about it uses real people or repositories.
 
-Every row is namespaced under a `seed-` project id, so re-running replaces only the demo data and leaves real projects alone. `npm run db:seed:reset` removes it. The script refuses to run unless `APP_URL` points at localhost, so it cannot touch production.
+Every row is namespaced under a `seed-` project id, so re-running replaces only the demo data and leaves real projects alone. `npm run db:seed:reset` removes it. The route only exists while `vite dev` is running with a localhost `APP_URL`, so it cannot touch production.
 
 If "Sign in with GitHub" lands on a GitHub 404, `GITHUB_CLIENT_ID` is still the placeholder or does not match a real OAuth app. `npm run check:oauth` verifies that the local client ID and secret belong together without starting the app or using a real OAuth code.
 
