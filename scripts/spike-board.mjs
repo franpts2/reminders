@@ -10,14 +10,14 @@
  *   GITHUB_TOKEN=ghp_... node scripts/spike-board.mjs
  *
  *   node scripts/spike-board.mjs --url=... --token=...
- *   node scripts/spike-board.mjs --fixture [path]
+ *   node scripts/spike-board.mjs --fixture[=<path>]
  *
  * BOARD_URL and GITHUB_TOKEN fall back to .dev.vars. The token needs
  * read:project, plus repo read access for private items.
  *
  * --fixture writes a redacted copy of the board to docs/fixtures/board-page.json
- * (or the given path). Titles, logins, repository names and labels are
- * replaced, so the file is safe to commit.
+ * (or the given path). Node ids, iteration ids, option ids, titles, logins,
+ * repository names and labels are replaced, so the file is safe to commit.
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -25,9 +25,15 @@ import { dirname } from 'node:path';
 const args = process.argv.slice(2);
 const hasFlag = (name) => args.includes(`--${name}`);
 const option = (name) => {
-	const hit = args.find((arg) => arg === `--${name}` || arg.startsWith(`--${name}=`));
-	if (!hit) return undefined;
-	return hit.includes('=') ? hit.slice(hit.indexOf('=') + 1) : '';
+	const inline = args.find((arg) => arg.startsWith(`--${name}=`));
+	if (inline) return inline.slice(name.length + 3);
+
+	const index = args.indexOf(`--${name}`);
+	if (index === -1) return undefined;
+
+	// A bare flag keeps its empty value; otherwise consume the next argument.
+	const next = args[index + 1];
+	return next && !next.startsWith('-') ? next : '';
 };
 
 function fail(message) {
@@ -279,11 +285,23 @@ function isDone(item, statusFieldName, doneOptionName) {
 
 function redact(project) {
 	const clone = structuredClone(project);
+	const ids = new Map();
+	let idIndex = 0;
+	const redactId = (id) => {
+		if (!id) return id;
+		if (!ids.has(id)) ids.set(id, `example-id-${++idIndex}`);
+		return ids.get(id);
+	};
+
+	clone.id = redactId(clone.id);
 	clone.title = 'Example board';
 
 	const iterationTitles = new Map();
 	let iterationIndex = 0;
 	for (const field of clone.fields.nodes) {
+		field.id = redactId(field.id);
+		for (const option of field.options ?? []) option.id = redactId(option.id);
+
 		const iterations = [
 			...(field.configuration?.iterations ?? []),
 			...(field.configuration?.completedIterations ?? [])
@@ -293,12 +311,14 @@ function redact(project) {
 				iterationTitles.set(iteration.id, `Iteration ${++iterationIndex}`);
 			}
 			iteration.title = iterationTitles.get(iteration.id);
+			iteration.id = redactId(iteration.id);
 		}
 	}
 
 	let itemIndex = 0;
 	for (const item of clone.items.nodes) {
 		itemIndex++;
+		item.id = redactId(item.id);
 		const content = item.content;
 		if (content) {
 			if (content.title) content.title = `Example ${item.type.toLowerCase()} ${itemIndex}`;
@@ -315,6 +335,9 @@ function redact(project) {
 			if (value.__typename === 'ProjectV2ItemFieldIterationValue' && iterationTitles.has(value.iterationId)) {
 				value.title = iterationTitles.get(value.iterationId);
 			}
+			if (value.iterationId) value.iterationId = redactId(value.iterationId);
+			if (value.optionId) value.optionId = redactId(value.optionId);
+			if (value.field?.id) value.field.id = redactId(value.field.id);
 		}
 	}
 
@@ -352,6 +375,7 @@ function summarise({ project, rateLimit, nestedFieldPages }) {
 		: [];
 	const counts = new Map(iterations.map((iteration) => [iteration.id, { total: 0, done: 0 }]));
 	let noIteration = 0;
+	let unknownIteration = 0;
 	let noStatus = 0;
 	let archived = 0;
 	let redacted = 0;
@@ -370,6 +394,8 @@ function summarise({ project, rateLimit, nestedFieldPages }) {
 			if (count) {
 				count.total++;
 				if (isDone(item, statusFieldName, doneOptionName)) count.done++;
+			} else {
+				unknownIteration++;
 			}
 		}
 
@@ -402,6 +428,11 @@ function summarise({ project, rateLimit, nestedFieldPages }) {
 	console.log('');
 	console.log(`Items:      ${project.items.nodes.length} (${archived} archived, ${redacted} redacted)`);
 	console.log(`No iteration: ${noIteration}`);
+	if (unknownIteration > 0) {
+		console.log(
+			`! ${unknownIteration} items reference an iteration missing from the field config (deleted?).`
+		);
+	}
 	console.log(`No Status:    ${noStatus}`);
 	console.log(`Repos:        ${repos.size}${repos.size ? ` (${[...repos].join(', ')})` : ''}`);
 	if (nestedFieldPages > 0) {
@@ -422,8 +453,8 @@ function writeFixture(project) {
 		_meta: {
 			redacted: true,
 			capturedAt: new Date().toISOString(),
-			source: `${ownerType}/${owner}/projects/${number}`,
-			note: 'Redacted board page for offline mapper tests. No titles, logins or repository names.'
+			source: 'example/board',
+			note: 'Redacted board page for offline mapper tests. No ids, titles, logins or repository names.'
 		},
 		data: {
 			[ROOT_KEY]: { projectV2: redact(project) },
