@@ -958,6 +958,9 @@ const STATEMENTS_PER_BATCH = 20;
 /**
  * Inserts or refreshes items for their sprint. `is_committed` (the baseline)
  * and `first_seen_at` are only written on insert; everything else refreshes.
+ * Locking a baseline therefore needs its own
+ * `UPDATE sprint_items SET is_committed = 1 ...` when a sprint becomes active;
+ * this function will not set it on a refresh.
  */
 export async function upsertSprintItems(
 	db: D1Database,
