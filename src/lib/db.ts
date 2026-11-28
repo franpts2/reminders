@@ -7,6 +7,7 @@ export interface User {
 	email: string | null;
 	avatar_url: string | null;
 	access_token: string;
+	oauth_scopes: string | null;
 	created_at: string;
 }
 
@@ -68,16 +69,24 @@ export async function getUserByGithubId(db: D1Database, githubId: number): Promi
 
 export async function createUser(
 	db: D1Database,
-	user: Omit<User, 'id' | 'created_at'>
+	user: Omit<User, 'id' | 'created_at' | 'oauth_scopes'> & { oauth_scopes?: string | null }
 ): Promise<User> {
 	const id = generateId();
 	await db
 		.prepare(
-			'INSERT INTO users (id, github_id, github_login, email, avatar_url, access_token) VALUES (?, ?, ?, ?, ?, ?)'
+			'INSERT INTO users (id, github_id, github_login, email, avatar_url, access_token, oauth_scopes) VALUES (?, ?, ?, ?, ?, ?, ?)'
 		)
-		.bind(id, user.github_id, user.github_login, user.email, user.avatar_url, user.access_token)
+		.bind(
+			id,
+			user.github_id,
+			user.github_login,
+			user.email,
+			user.avatar_url,
+			user.access_token,
+			user.oauth_scopes ?? null
+		)
 		.run();
-	return { ...user, id, created_at: new Date().toISOString() };
+	return { ...user, oauth_scopes: user.oauth_scopes ?? null, id, created_at: new Date().toISOString() };
 }
 
 export async function updateUserAccessToken(
@@ -374,6 +383,35 @@ export async function deleteProject(db: D1Database, projectId: string): Promise<
 		db.prepare('DELETE FROM reminder_conditions WHERE project_id = ?').bind(projectId),
 		db.prepare('DELETE FROM reminder_configs WHERE project_id = ?').bind(projectId),
 		db.prepare('DELETE FROM scan_logs WHERE project_id = ?').bind(projectId),
+		db
+			.prepare(
+				`DELETE FROM sprint_snapshots WHERE sprint_id IN (
+					SELECT s.id FROM sprints s
+					JOIN project_boards b ON b.id = s.board_id
+					WHERE b.project_id = ?
+				)`
+			)
+			.bind(projectId),
+		db
+			.prepare(
+				`DELETE FROM sprint_items WHERE sprint_id IN (
+					SELECT s.id FROM sprints s
+					JOIN project_boards b ON b.id = s.board_id
+					WHERE b.project_id = ?
+				)`
+			)
+			.bind(projectId),
+		db
+			.prepare(
+				'DELETE FROM sprints WHERE board_id IN (SELECT id FROM project_boards WHERE project_id = ?)'
+			)
+			.bind(projectId),
+		db
+			.prepare(
+				'DELETE FROM board_sync_logs WHERE board_id IN (SELECT id FROM project_boards WHERE project_id = ?)'
+			)
+			.bind(projectId),
+		db.prepare('DELETE FROM project_boards WHERE project_id = ?').bind(projectId),
 		db.prepare('DELETE FROM projects WHERE id = ?').bind(projectId)
 	]);
 }
@@ -730,4 +768,401 @@ export interface ScanLog {
 	reminders_created: number;
 	reminders_resolved: number;
 	error: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Sprint metrics (GitHub Projects v2)
+// ---------------------------------------------------------------------------
+
+export interface ProjectBoard {
+	id: string;
+	project_id: string;
+	owner_login: string;
+	owner_type: 'organization' | 'user';
+	project_number: number;
+	project_node_id: string;
+	iteration_field_id: string;
+	iteration_field_name: string;
+	status_field_id: string | null;
+	status_field_name: string | null;
+	done_option_name: string | null;
+	last_synced_at: string | null;
+	last_sync_error: string | null;
+	created_at: string;
+}
+
+export interface Sprint {
+	id: string;
+	board_id: string;
+	iteration_id: string;
+	title: string;
+	start_date: string;
+	duration_days: number;
+	end_date: string;
+	state: 'upcoming' | 'active' | 'completed';
+	baseline_locked_at: string | null;
+	baseline_approximate: number;
+	closed_at: string | null;
+	created_at: string;
+}
+
+export interface SprintItem {
+	id: string;
+	sprint_id: string;
+	project_item_id: string;
+	repo_full_name: string | null;
+	item_type: 'issue' | 'pr' | 'draft';
+	number: number | null;
+	title: string;
+	status: string | null;
+	assignee: string | null;
+	labels: string | null;
+	content_state: string | null;
+	state_reason: string | null;
+	is_archived: number;
+	iteration_assigned_at: string | null;
+	is_committed: number;
+	first_seen_at: string;
+	last_seen_at: string;
+	closed_at: string | null;
+	merged_at: string | null;
+}
+
+export interface SprintSnapshot {
+	id: string;
+	sprint_id: string;
+	project_item_id: string;
+	snapshotted_on: string;
+	iteration_id: string | null;
+	status: string | null;
+	is_done: number;
+}
+
+export interface BoardSyncLog {
+	id: string;
+	board_id: string;
+	started_at: string;
+	finished_at: string | null;
+	items_seen: number;
+	items_redacted: number;
+	sprints_synced: number;
+	error: string | null;
+	stats_json: string | null;
+}
+
+export type SprintInput = Omit<Sprint, 'id' | 'created_at'> & { id?: string };
+export type SprintItemInput = Omit<SprintItem, 'id'> & { id?: string };
+export type SprintSnapshotInput = Omit<SprintSnapshot, 'id'> & { id?: string };
+
+export interface SprintMetricsRow extends SprintItem {
+	sprint_start: string;
+	sprint_end: string;
+	board_id: string;
+	done_option_name: string | null;
+}
+
+export async function getBoardByProject(
+	db: D1Database,
+	projectId: string
+): Promise<ProjectBoard | null> {
+	const row = await db
+		.prepare('SELECT * FROM project_boards WHERE project_id = ?')
+		.bind(projectId)
+		.first<ProjectBoard>();
+	return row || null;
+}
+
+export async function getSprintsByBoard(db: D1Database, boardId: string): Promise<Sprint[]> {
+	const { results } = await db
+		.prepare('SELECT * FROM sprints WHERE board_id = ? ORDER BY start_date DESC')
+		.bind(boardId)
+		.all<Sprint>();
+	return results || [];
+}
+
+export async function getSprintByIteration(
+	db: D1Database,
+	boardId: string,
+	iterationId: string
+): Promise<Sprint | null> {
+	const row = await db
+		.prepare('SELECT * FROM sprints WHERE board_id = ? AND iteration_id = ?')
+		.bind(boardId, iterationId)
+		.first<Sprint>();
+	return row || null;
+}
+
+/**
+ * Upserts on `(board_id, iteration_id)`. Baseline and close timestamps are
+ * sticky: a refresh never clears them. Returns the stored row so callers get
+ * the id that actually exists.
+ */
+export async function upsertSprint(db: D1Database, sprint: SprintInput): Promise<Sprint> {
+	await db
+		.prepare(
+			`INSERT INTO sprints (
+				id, board_id, iteration_id, title, start_date, duration_days, end_date,
+				state, baseline_locked_at, baseline_approximate, closed_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(board_id, iteration_id) DO UPDATE SET
+				title = excluded.title,
+				start_date = excluded.start_date,
+				duration_days = excluded.duration_days,
+				end_date = excluded.end_date,
+				state = excluded.state,
+				baseline_locked_at = COALESCE(excluded.baseline_locked_at, sprints.baseline_locked_at),
+				baseline_approximate = MAX(sprints.baseline_approximate, excluded.baseline_approximate),
+				closed_at = COALESCE(excluded.closed_at, sprints.closed_at)`
+		)
+		.bind(
+			sprint.id ?? generateId(),
+			sprint.board_id,
+			sprint.iteration_id,
+			sprint.title,
+			sprint.start_date,
+			sprint.duration_days,
+			sprint.end_date,
+			sprint.state,
+			sprint.baseline_locked_at,
+			sprint.baseline_approximate,
+			sprint.closed_at
+		)
+		.run();
+
+	const stored = await getSprintByIteration(db, sprint.board_id, sprint.iteration_id);
+	if (!stored) throw new Error('Sprint disappeared after upsert');
+	return stored;
+}
+
+export async function getSprintItems(
+	db: D1Database,
+	sprintId: string,
+	onlyCommitted = false
+): Promise<SprintItem[]> {
+	const { results } = await db
+		.prepare(
+			onlyCommitted
+				? 'SELECT * FROM sprint_items WHERE sprint_id = ? AND is_committed = 1 ORDER BY item_type, number'
+				: 'SELECT * FROM sprint_items WHERE sprint_id = ? ORDER BY item_type, number'
+		)
+		.bind(sprintId)
+		.all<SprintItem>();
+	return results || [];
+}
+
+// D1 allows 100 bound parameters per query, and sprint_items has 19 columns.
+const SPRINT_ITEM_COLUMNS = 19;
+const SPRINT_ITEM_ROWS_PER_STATEMENT = Math.floor(100 / SPRINT_ITEM_COLUMNS);
+const STATEMENTS_PER_BATCH = 20;
+
+/**
+ * Inserts or refreshes items for their sprint. `is_committed` (the baseline)
+ * and `first_seen_at` are only written on insert; everything else refreshes.
+ * Locking a baseline therefore needs its own
+ * `UPDATE sprint_items SET is_committed = 1 ...` when a sprint becomes active;
+ * this function will not set it on a refresh.
+ */
+export async function upsertSprintItems(
+	db: D1Database,
+	items: SprintItemInput[]
+): Promise<void> {
+	if (items.length === 0) return;
+
+	const rowPlaceholder = `(${Array(SPRINT_ITEM_COLUMNS).fill('?').join(', ')})`;
+	const statements: ReturnType<D1Database['prepare']>[] = [];
+
+	for (let start = 0; start < items.length; start += SPRINT_ITEM_ROWS_PER_STATEMENT) {
+		const chunk = items.slice(start, start + SPRINT_ITEM_ROWS_PER_STATEMENT);
+		const values = chunk.flatMap((item) => [
+			item.id ?? generateId(),
+			item.sprint_id,
+			item.project_item_id,
+			item.repo_full_name,
+			item.item_type,
+			item.number,
+			item.title,
+			item.status,
+			item.assignee,
+			item.labels,
+			item.content_state,
+			item.state_reason,
+			item.is_archived,
+			item.iteration_assigned_at,
+			item.is_committed,
+			item.first_seen_at,
+			item.last_seen_at,
+			item.closed_at,
+			item.merged_at
+		]);
+
+		statements.push(
+			db
+				.prepare(
+					`INSERT INTO sprint_items (
+						id, sprint_id, project_item_id, repo_full_name, item_type, number, title,
+						status, assignee, labels, content_state, state_reason, is_archived,
+						iteration_assigned_at, is_committed, first_seen_at, last_seen_at,
+						closed_at, merged_at
+					) VALUES ${chunk.map(() => rowPlaceholder).join(', ')}
+					ON CONFLICT(sprint_id, project_item_id) DO UPDATE SET
+						repo_full_name = excluded.repo_full_name,
+						item_type = excluded.item_type,
+						number = excluded.number,
+						title = excluded.title,
+						status = excluded.status,
+						assignee = excluded.assignee,
+						labels = excluded.labels,
+						content_state = excluded.content_state,
+						state_reason = excluded.state_reason,
+						is_archived = excluded.is_archived,
+						iteration_assigned_at = excluded.iteration_assigned_at,
+						last_seen_at = excluded.last_seen_at,
+						closed_at = excluded.closed_at,
+						merged_at = excluded.merged_at`
+				)
+				.bind(...values)
+		);
+	}
+
+	for (let start = 0; start < statements.length; start += STATEMENTS_PER_BATCH) {
+		await db.batch(statements.slice(start, start + STATEMENTS_PER_BATCH));
+	}
+}
+
+/** Idempotent per (sprint, item, day). */
+export async function recordSnapshot(
+	db: D1Database,
+	snapshot: SprintSnapshotInput
+): Promise<void> {
+	await db
+		.prepare(
+			`INSERT INTO sprint_snapshots (
+				id, sprint_id, project_item_id, snapshotted_on, iteration_id, status, is_done
+			) VALUES (?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(sprint_id, project_item_id, snapshotted_on) DO UPDATE SET
+				iteration_id = excluded.iteration_id,
+				status = excluded.status,
+				is_done = excluded.is_done`
+		)
+		.bind(
+			snapshot.id ?? generateId(),
+			snapshot.sprint_id,
+			snapshot.project_item_id,
+			snapshot.snapshotted_on,
+			snapshot.iteration_id,
+			snapshot.status,
+			snapshot.is_done
+		)
+		.run();
+}
+
+export async function getSprintSnapshots(
+	db: D1Database,
+	sprintId: string
+): Promise<SprintSnapshot[]> {
+	const { results } = await db
+		.prepare(
+			'SELECT * FROM sprint_snapshots WHERE sprint_id = ? ORDER BY snapshotted_on, project_item_id'
+		)
+		.bind(sprintId)
+		.all<SprintSnapshot>();
+	return results || [];
+}
+
+/** Items plus the window and board settings needed to score them. */
+export async function getSprintMetricsRows(
+	db: D1Database,
+	sprintId: string
+): Promise<SprintMetricsRow[]> {
+	const { results } = await db
+		.prepare(
+			`SELECT si.*, s.start_date AS sprint_start, s.end_date AS sprint_end,
+				s.board_id, b.done_option_name
+			FROM sprint_items si
+			JOIN sprints s ON s.id = si.sprint_id
+			JOIN project_boards b ON b.id = s.board_id
+			WHERE si.sprint_id = ?
+			ORDER BY si.item_type, si.number`
+		)
+		.bind(sprintId)
+		.all<SprintMetricsRow>();
+	return results || [];
+}
+
+export async function createBoardSyncLog(
+	db: D1Database,
+	boardId: string
+): Promise<BoardSyncLog> {
+	const id = generateId();
+	const startedAt = new Date().toISOString();
+	await db
+		.prepare('INSERT INTO board_sync_logs (id, board_id, started_at) VALUES (?, ?, ?)')
+		.bind(id, boardId, startedAt)
+		.run();
+	return {
+		id,
+		board_id: boardId,
+		started_at: startedAt,
+		finished_at: null,
+		items_seen: 0,
+		items_redacted: 0,
+		sprints_synced: 0,
+		error: null,
+		stats_json: null
+	};
+}
+
+export async function finishBoardSyncLog(
+	db: D1Database,
+	id: string,
+	updates: {
+		items_seen?: number;
+		items_redacted?: number;
+		sprints_synced?: number;
+		error?: string | null;
+		stats_json?: string | null;
+	}
+): Promise<void> {
+	const sets = ['finished_at = ?'];
+	const values: (string | number | null)[] = [new Date().toISOString()];
+
+	if (updates.items_seen !== undefined) {
+		sets.push('items_seen = ?');
+		values.push(updates.items_seen);
+	}
+	if (updates.items_redacted !== undefined) {
+		sets.push('items_redacted = ?');
+		values.push(updates.items_redacted);
+	}
+	if (updates.sprints_synced !== undefined) {
+		sets.push('sprints_synced = ?');
+		values.push(updates.sprints_synced);
+	}
+	if (updates.error !== undefined) {
+		sets.push('error = ?');
+		values.push(updates.error);
+	}
+	if (updates.stats_json !== undefined) {
+		sets.push('stats_json = ?');
+		values.push(updates.stats_json);
+	}
+
+	values.push(id);
+	await db
+		.prepare(`UPDATE board_sync_logs SET ${sets.join(', ')} WHERE id = ?`)
+		.bind(...values)
+		.run();
+}
+
+export async function getLatestBoardSyncLog(
+	db: D1Database,
+	boardId: string
+): Promise<BoardSyncLog | null> {
+	const row = await db
+		.prepare(
+			'SELECT * FROM board_sync_logs WHERE board_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1'
+		)
+		.bind(boardId)
+		.first<BoardSyncLog>();
+	return row || null;
 }
