@@ -25,6 +25,14 @@ describe('toDateOnly', () => {
 		expect(toDateOnly('2026-11-05T23:30:00-03:00')).toBe('2026-11-06');
 	});
 
+	it('treats a D1 timestamp without a zone as UTC', () => {
+		expect(toDateOnly('2026-11-18 23:30:00')).toBe('2026-11-18');
+	});
+
+	it('rejects an ISO timestamp without a zone', () => {
+		expect(() => toDateOnly('2026-11-18T23:30:00')).toThrow(/must include Z or an offset/);
+	});
+
 	it('rejects impossible dates', () => {
 		expect(() => toDateOnly('2026-02-30')).toThrow(/Invalid calendar date/);
 	});

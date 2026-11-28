@@ -30,6 +30,8 @@ export interface DoneOptions {
 }
 
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+const SQLITE_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/;
+const TIMESTAMP_WITHOUT_ZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?$/;
 
 function parseDateOnly(value: string): { year: number; month: number; day: number } {
 	const match = DATE_ONLY.exec(value);
@@ -56,9 +58,23 @@ function parseDateOnly(value: string): { year: number; month: number; day: numbe
  * string is validated and returned unchanged.
  */
 export function toDateOnly(value: Date | string): string {
-	if (typeof value === 'string' && DATE_ONLY.test(value)) {
-		parseDateOnly(value);
-		return value;
+	if (typeof value === 'string') {
+		if (DATE_ONLY.test(value)) {
+			parseDateOnly(value);
+			return value;
+		}
+
+		// D1's CURRENT_TIMESTAMP is UTC but has no zone marker.
+		const sqlite = SQLITE_TIMESTAMP.exec(value);
+		if (sqlite) {
+			return toDateOnly(
+				`${sqlite[1]}-${sqlite[2]}-${sqlite[3]}T${sqlite[4]}:${sqlite[5]}:${sqlite[6]}Z`
+			);
+		}
+
+		if (TIMESTAMP_WITHOUT_ZONE.test(value)) {
+			throw new Error(`Timestamp must include Z or an offset: "${value}"`);
+		}
 	}
 
 	const date = value instanceof Date ? value : new Date(value);
