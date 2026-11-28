@@ -8,6 +8,12 @@ export interface GitHubUser {
 	avatar_url: string | null;
 }
 
+export interface GitHubIdentity {
+	user: GitHubUser;
+	/** Scopes reported by GitHub for this token, when the header is present. */
+	scopes: string | null;
+}
+
 export interface GitHubTokens {
 	access_token: string;
 	token_type: string;
@@ -108,7 +114,7 @@ function describeTokenError(
 	}
 }
 
-export async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
+export async function fetchGitHubIdentity(accessToken: string): Promise<GitHubIdentity> {
 	const response = await fetch('https://api.github.com/user', {
 		headers: {
 			Authorization: `Bearer ${accessToken}`,
@@ -122,7 +128,10 @@ export async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> 
 		throw new Error(`Failed to fetch GitHub user: ${response.status}`);
 	}
 
-	return (await response.json()) as GitHubUser;
+	return {
+		user: (await response.json()) as GitHubUser,
+		scopes: response.headers.get('x-oauth-scopes')
+	};
 }
 
 export async function getOrCreateUserFromGitHub(

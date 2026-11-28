@@ -2,7 +2,7 @@ import { redirect, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
 	exchangeGitHubCode,
-	fetchGitHubUser,
+	fetchGitHubIdentity,
 	getOrCreateUserFromGitHub,
 	encryptSession
 } from '$lib/auth';
@@ -36,14 +36,15 @@ export const GET: RequestHandler = async ({ url, cookies, platform }) => {
 	).catch((cause: unknown) => {
 		throw error(500, cause instanceof Error ? cause.message : 'GitHub token exchange failed');
 	});
-	const githubUser = await fetchGitHubUser(tokens.access_token).catch((cause: unknown) => {
+	const identity = await fetchGitHubIdentity(tokens.access_token).catch((cause: unknown) => {
 		throw error(500, cause instanceof Error ? cause.message : 'Failed to fetch GitHub user');
 	});
+	const oauthScopes = tokens.scope || identity.scopes || null;
 	const user = await getOrCreateUserFromGitHub(
 		env.DB,
-		githubUser,
+		identity.user,
 		tokens.access_token,
-		tokens.scope ?? null
+		oauthScopes
 	).catch((cause: unknown) => {
 		throw error(
 			500,
