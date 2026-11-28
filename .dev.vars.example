@@ -13,3 +13,6 @@ APP_URL=http://localhost:5173
 # GitHub Projects v2 board. The token needs read:project.
 # BOARD_URL=https://github.com/orgs/your-org/projects/1
 # GITHUB_TOKEN=
+#
+# Feature flags. Set to 1 to show the sprint board card in project settings.
+# BOARD_METRICS=1

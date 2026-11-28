@@ -92,9 +92,13 @@ export async function createUser(
 export async function updateUserAccessToken(
 	db: D1Database,
 	githubId: number,
-	accessToken: string
+	accessToken: string,
+	oauthScopes: string | null = null
 ): Promise<void> {
-	await db.prepare('UPDATE users SET access_token = ? WHERE github_id = ?').bind(accessToken, githubId).run();
+	await db
+		.prepare('UPDATE users SET access_token = ?, oauth_scopes = ? WHERE github_id = ?')
+		.bind(accessToken, oauthScopes, githubId)
+		.run();
 }
 
 export async function getUserById(db: D1Database, id: string): Promise<User | null> {
@@ -383,35 +387,7 @@ export async function deleteProject(db: D1Database, projectId: string): Promise<
 		db.prepare('DELETE FROM reminder_conditions WHERE project_id = ?').bind(projectId),
 		db.prepare('DELETE FROM reminder_configs WHERE project_id = ?').bind(projectId),
 		db.prepare('DELETE FROM scan_logs WHERE project_id = ?').bind(projectId),
-		db
-			.prepare(
-				`DELETE FROM sprint_snapshots WHERE sprint_id IN (
-					SELECT s.id FROM sprints s
-					JOIN project_boards b ON b.id = s.board_id
-					WHERE b.project_id = ?
-				)`
-			)
-			.bind(projectId),
-		db
-			.prepare(
-				`DELETE FROM sprint_items WHERE sprint_id IN (
-					SELECT s.id FROM sprints s
-					JOIN project_boards b ON b.id = s.board_id
-					WHERE b.project_id = ?
-				)`
-			)
-			.bind(projectId),
-		db
-			.prepare(
-				'DELETE FROM sprints WHERE board_id IN (SELECT id FROM project_boards WHERE project_id = ?)'
-			)
-			.bind(projectId),
-		db
-			.prepare(
-				'DELETE FROM board_sync_logs WHERE board_id IN (SELECT id FROM project_boards WHERE project_id = ?)'
-			)
-			.bind(projectId),
-		db.prepare('DELETE FROM project_boards WHERE project_id = ?').bind(projectId),
+		...boardDeleteStatements(db, projectId),
 		db.prepare('DELETE FROM projects WHERE id = ?').bind(projectId)
 	]);
 }
@@ -853,6 +829,14 @@ export interface BoardSyncLog {
 export type SprintInput = Omit<Sprint, 'id' | 'created_at'> & { id?: string };
 export type SprintItemInput = Omit<SprintItem, 'id'> & { id?: string };
 export type SprintSnapshotInput = Omit<SprintSnapshot, 'id'> & { id?: string };
+export type ProjectBoardInput = Omit<
+	ProjectBoard,
+	'id' | 'created_at' | 'last_synced_at' | 'last_sync_error'
+> & {
+	id?: string;
+	last_synced_at?: string | null;
+	last_sync_error?: string | null;
+};
 
 export interface SprintMetricsRow extends SprintItem {
 	sprint_start: string;
@@ -870,6 +854,89 @@ export async function getBoardByProject(
 		.bind(projectId)
 		.first<ProjectBoard>();
 	return row || null;
+}
+
+/**
+ * Reconnecting the same board replaces the config in place and keeps sync
+ * history. Connecting a different board clears the cached sprints, items and
+ * snapshots first, so metrics cannot mix two boards.
+ */
+export async function upsertProjectBoard(
+	db: D1Database,
+	board: ProjectBoardInput
+): Promise<ProjectBoard> {
+	const existing = await getBoardByProject(db, board.project_id);
+	if (existing && existing.project_node_id !== board.project_node_id) {
+		await deleteBoardByProject(db, board.project_id);
+	}
+
+	await db
+		.prepare(
+			`INSERT INTO project_boards (
+				id, project_id, owner_login, owner_type, project_number, project_node_id,
+				iteration_field_id, iteration_field_name, status_field_id, status_field_name,
+				done_option_name, last_synced_at, last_sync_error
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(project_id) DO UPDATE SET
+				owner_login = excluded.owner_login,
+				owner_type = excluded.owner_type,
+				project_number = excluded.project_number,
+				project_node_id = excluded.project_node_id,
+				iteration_field_id = excluded.iteration_field_id,
+				iteration_field_name = excluded.iteration_field_name,
+				status_field_id = excluded.status_field_id,
+				status_field_name = excluded.status_field_name,
+				done_option_name = excluded.done_option_name,
+				last_synced_at = COALESCE(excluded.last_synced_at, project_boards.last_synced_at),
+				last_sync_error = excluded.last_sync_error`
+		)
+		.bind(
+			board.id ?? generateId(),
+			board.project_id,
+			board.owner_login,
+			board.owner_type,
+			board.project_number,
+			board.project_node_id,
+			board.iteration_field_id,
+			board.iteration_field_name,
+			board.status_field_id,
+			board.status_field_name,
+			board.done_option_name,
+			board.last_synced_at ?? null,
+			board.last_sync_error ?? null
+		)
+		.run();
+
+	const stored = await getBoardByProject(db, board.project_id);
+	if (!stored) throw new Error('Board disappeared after upsert');
+	return stored;
+}
+
+function boardDeleteStatements(db: D1Database, projectId: string) {
+	const sprintIds = `SELECT s.id FROM sprints s
+		JOIN project_boards b ON b.id = s.board_id
+		WHERE b.project_id = ?`;
+
+	return [
+		db.prepare(`DELETE FROM sprint_snapshots WHERE sprint_id IN (${sprintIds})`).bind(projectId),
+		db.prepare(`DELETE FROM sprint_items WHERE sprint_id IN (${sprintIds})`).bind(projectId),
+		db
+			.prepare(
+				'DELETE FROM sprints WHERE board_id IN (SELECT id FROM project_boards WHERE project_id = ?)'
+			)
+			.bind(projectId),
+		db
+			.prepare(
+				'DELETE FROM board_sync_logs WHERE board_id IN (SELECT id FROM project_boards WHERE project_id = ?)'
+			)
+			.bind(projectId),
+		db.prepare('DELETE FROM project_boards WHERE project_id = ?').bind(projectId)
+	];
+}
+
+/** Disconnecting drops the cached sprints and snapshots with the board. */
+export async function deleteBoardByProject(db: D1Database, projectId: string): Promise<void> {
+	await db.batch(boardDeleteStatements(db, projectId));
 }
 
 export async function getSprintsByBoard(db: D1Database, boardId: string): Promise<Sprint[]> {

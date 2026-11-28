@@ -8,6 +8,12 @@ export interface GitHubUser {
 	avatar_url: string | null;
 }
 
+export interface GitHubIdentity {
+	user: GitHubUser;
+	/** Scopes reported by GitHub for this token, when the header is present. */
+	scopes: string | null;
+}
+
 export interface GitHubTokens {
 	access_token: string;
 	token_type: string;
@@ -16,15 +22,41 @@ export interface GitHubTokens {
 
 const PLACEHOLDER_CLIENT_ID = 'your-github-oauth-app-client-id';
 
+export const PROJECT_SCOPE = 'read:project';
+
 export function isPlaceholderClientId(clientId: string): boolean {
 	return clientId.trim() === '' || clientId.trim() === PLACEHOLDER_CLIENT_ID;
 }
 
-export function getGitHubOAuthUrl(clientId: string, redirectUri: string, state: string): string {
+export class MissingScopeError extends Error {
+	constructor(readonly scope: string) {
+		super(`Missing required GitHub scope: ${scope}`);
+		this.name = 'MissingScopeError';
+	}
+}
+
+/**
+ * Whether the stored OAuth token includes project (Projects v2) access.
+ * GitHub can return scopes comma- or space-separated.
+ */
+export function hasProjectScope(
+	user: { oauth_scopes?: string | null } | null | undefined
+): boolean {
+	if (!user?.oauth_scopes) return false;
+	const scopes = user.oauth_scopes.split(/[,\s]+/).filter(Boolean);
+	return scopes.includes(PROJECT_SCOPE) || scopes.includes('project');
+}
+
+export function getGitHubOAuthUrl(
+	clientId: string,
+	redirectUri: string,
+	state: string,
+	scopes = 'read:user'
+): string {
 	const params = new URLSearchParams({
 		client_id: clientId,
 		redirect_uri: redirectUri,
-		scope: 'read:user',
+		scope: scopes,
 		state
 	});
 	return `https://github.com/login/oauth/authorize?${params.toString()}`;
@@ -82,7 +114,7 @@ function describeTokenError(
 	}
 }
 
-export async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
+export async function fetchGitHubIdentity(accessToken: string): Promise<GitHubIdentity> {
 	const response = await fetch('https://api.github.com/user', {
 		headers: {
 			Authorization: `Bearer ${accessToken}`,
@@ -96,17 +128,21 @@ export async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> 
 		throw new Error(`Failed to fetch GitHub user: ${response.status}`);
 	}
 
-	return (await response.json()) as GitHubUser;
+	return {
+		user: (await response.json()) as GitHubUser,
+		scopes: response.headers.get('x-oauth-scopes')
+	};
 }
 
 export async function getOrCreateUserFromGitHub(
 	db: D1Database,
 	githubUser: GitHubUser,
-	accessToken: string
+	accessToken: string,
+	oauthScopes: string | null
 ): Promise<User> {
 	let user = await getUserByGithubId(db, githubUser.id);
 	if (user) {
-		await updateUserAccessToken(db, githubUser.id, accessToken);
+		await updateUserAccessToken(db, githubUser.id, accessToken, oauthScopes);
 		user = await getUserByGithubId(db, githubUser.id);
 		if (!user) throw new Error('User disappeared after update');
 		return user;
@@ -117,7 +153,8 @@ export async function getOrCreateUserFromGitHub(
 		github_login: githubUser.login,
 		email: githubUser.email,
 		avatar_url: githubUser.avatar_url,
-		access_token: accessToken
+		access_token: accessToken,
+		oauth_scopes: oauthScopes
 	});
 }
 

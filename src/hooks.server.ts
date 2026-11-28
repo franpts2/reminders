@@ -18,7 +18,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 					github_login: user.github_login,
 					email: user.email,
 					avatar_url: user.avatar_url,
-					access_token: user.access_token
+					access_token: user.access_token,
+					oauth_scopes: user.oauth_scopes
 				};
 			}
 		}

@@ -1,8 +1,9 @@
 import { redirect, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getGitHubOAuthUrl, isPlaceholderClientId } from '$lib/auth';
+import { safeRedirectPath } from '$lib/redirects';
 
-export const GET: RequestHandler = async ({ platform, cookies }) => {
+export const GET: RequestHandler = async ({ url, platform, cookies }) => {
 	const env = (platform as App.Platform)?.env;
 	if (!env?.GITHUB_CLIENT_ID || !env?.APP_URL) {
 		throw error(
@@ -19,15 +20,31 @@ export const GET: RequestHandler = async ({ platform, cookies }) => {
 	}
 
 	const state = crypto.randomUUID();
+	const secure = env.APP_URL?.startsWith('https://') ?? true;
 	cookies.set('oauth_state', state, {
 		path: '/',
 		httpOnly: true,
-		secure: env.APP_URL?.startsWith('https://') ?? true,
+		secure,
 		sameSite: 'lax',
 		maxAge: 600
 	});
 
+	// Board access is an extra consent, never part of normal sign-in. Keep the
+	// destination so the user lands back on the page that asked for it.
+	const next = safeRedirectPath(url.searchParams.get('next'), ['/projects']);
+	if (next) {
+		cookies.set('oauth_next', next, {
+			path: '/',
+			httpOnly: true,
+			secure,
+			sameSite: 'lax',
+			maxAge: 600
+		});
+	}
+
+	const forBoard = url.searchParams.get('for') === 'board';
+	const scopes = forBoard ? 'read:user read:project' : 'read:user';
 	const redirectUri = `${env.APP_URL}/auth/callback`;
-	const url = getGitHubOAuthUrl(env.GITHUB_CLIENT_ID, redirectUri, state);
-	throw redirect(302, url);
+	const authorizeUrl = getGitHubOAuthUrl(env.GITHUB_CLIENT_ID, redirectUri, state, scopes);
+	throw redirect(302, authorizeUrl);
 };

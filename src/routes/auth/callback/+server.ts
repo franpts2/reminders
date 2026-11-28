@@ -2,10 +2,11 @@ import { redirect, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
 	exchangeGitHubCode,
-	fetchGitHubUser,
+	fetchGitHubIdentity,
 	getOrCreateUserFromGitHub,
 	encryptSession
 } from '$lib/auth';
+import { safeRedirectPath } from '$lib/redirects';
 
 export const GET: RequestHandler = async ({ url, cookies, platform }) => {
 	const env = (platform as App.Platform)?.env;
@@ -36,19 +37,21 @@ export const GET: RequestHandler = async ({ url, cookies, platform }) => {
 	).catch((cause: unknown) => {
 		throw error(500, cause instanceof Error ? cause.message : 'GitHub token exchange failed');
 	});
-	const githubUser = await fetchGitHubUser(tokens.access_token).catch((cause: unknown) => {
+	const identity = await fetchGitHubIdentity(tokens.access_token).catch((cause: unknown) => {
 		throw error(500, cause instanceof Error ? cause.message : 'Failed to fetch GitHub user');
 	});
-	const user = await getOrCreateUserFromGitHub(env.DB, githubUser, tokens.access_token).catch(
-		(cause: unknown) => {
-			throw error(
-				500,
-				cause instanceof Error
-					? `Failed to save user: ${cause.message}`
-					: 'Failed to save user'
-			);
-		}
-	);
+	const oauthScopes = tokens.scope || identity.scopes || null;
+	const user = await getOrCreateUserFromGitHub(
+		env.DB,
+		identity.user,
+		tokens.access_token,
+		oauthScopes
+	).catch((cause: unknown) => {
+		throw error(
+			500,
+			cause instanceof Error ? `Failed to save user: ${cause.message}` : 'Failed to save user'
+		);
+	});
 
 	const sessionToken = await encryptSession(user.id, env.SESSION_SECRET);
 	cookies.set('session', sessionToken, {
@@ -59,5 +62,9 @@ export const GET: RequestHandler = async ({ url, cookies, platform }) => {
 		maxAge: 60 * 60 * 24 * 7
 	});
 
-	throw redirect(302, '/inbox');
+	const next = cookies.get('oauth_next');
+	cookies.delete('oauth_next', { path: '/' });
+	const destination = safeRedirectPath(next, ['/projects']) ?? '/inbox';
+
+	throw redirect(302, destination);
 };
