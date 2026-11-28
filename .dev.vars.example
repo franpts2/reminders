@@ -8,3 +8,8 @@ GITHUB_CLIENT_ID=your-github-oauth-app-client-id
 GITHUB_CLIENT_SECRET=
 SESSION_SECRET=
 APP_URL=http://localhost:5173
+#
+# Board probe (npm run spike:board). Optional; only needed to inspect a
+# GitHub Projects v2 board. The token needs read:project.
+# BOARD_URL=https://github.com/orgs/your-org/projects/1
+# GITHUB_TOKEN=
