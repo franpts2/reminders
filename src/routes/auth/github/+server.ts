@@ -1,6 +1,7 @@
 import { redirect, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getGitHubOAuthUrl, isPlaceholderClientId } from '$lib/auth';
+import { safeRedirectPath } from '$lib/redirects';
 
 export const GET: RequestHandler = async ({ url, platform, cookies }) => {
 	const env = (platform as App.Platform)?.env;
@@ -30,8 +31,8 @@ export const GET: RequestHandler = async ({ url, platform, cookies }) => {
 
 	// Board access is an extra consent, never part of normal sign-in. Keep the
 	// destination so the user lands back on the page that asked for it.
-	const next = url.searchParams.get('next');
-	if (next && next.startsWith('/') && !next.startsWith('//')) {
+	const next = safeRedirectPath(url.searchParams.get('next'), ['/projects']);
+	if (next) {
 		cookies.set('oauth_next', next, {
 			path: '/',
 			httpOnly: true,

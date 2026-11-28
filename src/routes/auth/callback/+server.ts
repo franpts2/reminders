@@ -6,6 +6,7 @@ import {
 	getOrCreateUserFromGitHub,
 	encryptSession
 } from '$lib/auth';
+import { safeRedirectPath } from '$lib/redirects';
 
 export const GET: RequestHandler = async ({ url, cookies, platform }) => {
 	const env = (platform as App.Platform)?.env;
@@ -63,7 +64,7 @@ export const GET: RequestHandler = async ({ url, cookies, platform }) => {
 
 	const next = cookies.get('oauth_next');
 	cookies.delete('oauth_next', { path: '/' });
-	const destination = next && next.startsWith('/') && !next.startsWith('//') ? next : '/inbox';
+	const destination = safeRedirectPath(next, ['/projects']) ?? '/inbox';
 
 	throw redirect(302, destination);
 };
