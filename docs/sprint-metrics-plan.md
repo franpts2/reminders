@@ -31,18 +31,18 @@ Status: draft, ready to start Iteration 0.
 
 ## 3. Dependency and risk register
 
-| Risk | Impact | Mitigation |
-| --- | --- | --- |
-| OAuth app needs `read:project`; existing users must re-consent | Blocks the feature per user | Optional "Connect board" re-auth, never a forced sign-in change; detect scope via `X-OAuth-Scopes` and the stored token scope |
-| Org has OAuth app access restrictions | NIAEFEUP can block the token | Spike with a real user token; add an actionable error path; document org approval |
-| No field history | Planned/carryover unrecoverable | Baseline snapshot at sprint start; label late-connected sprints "approximate" |
-| Items rolled over before first sync | Wrong committed set | Lock baseline at first sync after `start_date`; show `baseline_approximate` |
-| Archived items excluded by default | Completed count silently drops | Query with `archivedStates: [ARCHIVED, NOT_ARCHIVED]` |
-| Workers subrequest / CPU limits | Sync times out | Separate invocation from reminder scan; GraphQL pages of 100; batch D1 writes |
-| D1 bound-parameter limits | Bulk inserts fail | `db.batch()` with chunks of ≤ ~20 rows |
-| Iteration renamed / deleted | Keys break | Key on `iterationId`, never title; tolerate deleted iterations |
-| Board hygiene (no iteration, no Status) | Metrics look wrong | Data-quality banner with counts; never hide the gap |
-| Board spans several repos | Scope confusion | Board scope wins; show repo breakdown, optional repo filter |
+| Risk                                                           | Impact                          | Mitigation                                                                                                                    |
+| -------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| OAuth app needs `read:project`; existing users must re-consent | Blocks the feature per user     | Optional "Connect board" re-auth, never a forced sign-in change; detect scope via `X-OAuth-Scopes` and the stored token scope |
+| Org has OAuth app access restrictions                          | NIAEFEUP can block the token    | Spike with a real user token; add an actionable error path; document org approval                                             |
+| No field history                                               | Planned/carryover unrecoverable | Baseline snapshot at sprint start; label late-connected sprints "approximate"                                                 |
+| Items rolled over before first sync                            | Wrong committed set             | Lock baseline at first sync after `start_date`; show `baseline_approximate`                                                   |
+| Archived items excluded by default                             | Completed count silently drops  | Query with `archivedStates: [ARCHIVED, NOT_ARCHIVED]`                                                                         |
+| Workers subrequest / CPU limits                                | Sync times out                  | Separate invocation from reminder scan; GraphQL pages of 100; batch D1 writes                                                 |
+| D1 bound-parameter limits                                      | Bulk inserts fail               | `db.batch()` with chunks of ≤ ~20 rows                                                                                        |
+| Iteration renamed / deleted                                    | Keys break                      | Key on `iterationId`, never title; tolerate deleted iterations                                                                |
+| Board hygiene (no iteration, no Status)                        | Metrics look wrong              | Data-quality banner with counts; never hide the gap                                                                           |
+| Board spans several repos                                      | Scope confusion                 | Board scope wins; show repo breakdown, optional repo filter                                                                   |
 
 ## 4. Data model (migration `006_sprint_metrics.sql`)
 
@@ -169,20 +169,20 @@ Notes:
 
 Use date-only windows in the project timezone (v1: UTC, stated in the UI).
 
-| Metric | Definition |
-| --- | --- |
-| Committed | `sprint_items.is_committed = 1` (set at baseline) |
-| Done | `status = done_option_name` OR (`issue` and `state = CLOSED` and `state_reason <> NOT_PLANNED`) OR (`pr` and `merged_at is not null`); precedence configurable per board |
-| Completed in sprint | Done with a done timestamp inside the window (`closed_at` / `merged_at`) |
-| Added after start | Items whose iteration value was assigned on/after `start_date` (active sprint), or not in baseline (historical, approximate) |
-| Scope change | `added / committed` |
-| Carryover | Committed and not done at `end_date` (or at sync time for an active sprint) |
-| WIP at end | Items still in the iteration and not done |
-| Throughput | Issues closed + PRs merged with timestamp in the window (repo-level, independent of membership) |
-| Cycle time | PR `createdAt` (v2: first commit) → `mergedAt`; median and p90 |
-| Lead time | Issue `createdAt` → `closed_at`; median and p90 |
-| Review latency | v2: ready-for-review or first push → first non-author review |
-| Stuck work | Reminders created/resolved in the window and their age at resolution |
+| Metric              | Definition                                                                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Committed           | `sprint_items.is_committed = 1` (set at baseline)                                                                                                                        |
+| Done                | `status = done_option_name` OR (`issue` and `state = CLOSED` and `state_reason <> NOT_PLANNED`) OR (`pr` and `merged_at is not null`); precedence configurable per board |
+| Completed in sprint | Done with a done timestamp inside the window (`closed_at` / `merged_at`)                                                                                                 |
+| Added after start   | Items whose iteration value was assigned on/after `start_date` (active sprint), or not in baseline (historical, approximate)                                             |
+| Scope change        | `added / committed`                                                                                                                                                      |
+| Carryover           | Committed and not done at `end_date` (or at sync time for an active sprint)                                                                                              |
+| WIP at end          | Items still in the iteration and not done                                                                                                                                |
+| Throughput          | Issues closed + PRs merged with timestamp in the window (repo-level, independent of membership)                                                                          |
+| Cycle time          | PR `createdAt` (v2: first commit) → `mergedAt`; median and p90                                                                                                           |
+| Lead time           | Issue `createdAt` → `closed_at`; median and p90                                                                                                                          |
+| Review latency      | v2: ready-for-review or first push → first non-author review                                                                                                             |
+| Stuck work          | Reminders created/resolved in the window and their age at resolution                                                                                                     |
 
 Every metric row carries its source (`membership`, `timestamp`, `reminder`) so the UI can say
 "exact" vs "approximate" instead of pretending.
@@ -214,13 +214,13 @@ Rules:
 
 ### Charts (v1)
 
-| Chart | What it plots | Question it answers | Backfillable |
-| --- | --- | --- | --- |
-| Burnup (per sprint) | committed baseline, cumulative done, scope (committed + added) by day | Will we finish? | No — needs snapshots |
-| Throughput trend (last 6–8 sprints) | merged PRs + closed issues per sprint | Are we delivering more or less? | Yes |
-| Commitment vs outcome (per sprint) | done / carryover / added, stacked | Do we finish what we commit? | No |
-| Cycle time trend | median and p90 PR created → merged, per sprint | Is flow getting faster? | Yes |
-| Cross-project sparkbars | throughput per project on `/insights` | Which project needs attention? | Yes |
+| Chart                               | What it plots                                                         | Question it answers             | Backfillable         |
+| ----------------------------------- | --------------------------------------------------------------------- | ------------------------------- | -------------------- |
+| Burnup (per sprint)                 | committed baseline, cumulative done, scope (committed + added) by day | Will we finish?                 | No — needs snapshots |
+| Throughput trend (last 6–8 sprints) | merged PRs + closed issues per sprint                                 | Are we delivering more or less? | Yes                  |
+| Commitment vs outcome (per sprint)  | done / carryover / added, stacked                                     | Do we finish what we commit?    | No                   |
+| Cycle time trend                    | median and p90 PR created → merged, per sprint                        | Is flow getting faster?         | Yes                  |
+| Cross-project sparkbars             | throughput per project on `/insights`                                 | Which project needs attention?  | Yes                  |
 
 ## 7. Iterations
 
@@ -336,23 +336,24 @@ has a message; unit tests cover the date and membership edge cases.
 
 ## 8. Sequence and effort
 
-| Iteration | Outcome | Estimate |
-| --- | --- | --- |
-| 0 | Data and auth proven | 0.5 d |
-| 1 | Board connected, sprints imported | 2 d |
-| 2 | History captured | 3 d |
-| 3 | Summary and charts | 3 d |
-| 4 | Retro artifact | 2 d |
-| 5 | Multi-project view | 1.5 d |
-| 6 | Safe to operate | 2 d |
-| **Total** | | **~14 d** |
+| Iteration | Outcome                           | Estimate  |
+| --------- | --------------------------------- | --------- |
+| 0         | Data and auth proven              | 0.5 d     |
+| 1         | Board connected, sprints imported | 2 d       |
+| 2         | History captured                  | 3 d       |
+| 3         | Summary and charts                | 3 d       |
+| 4         | Retro artifact                    | 2 d       |
+| 5         | Multi-project view                | 1.5 d     |
+| 6         | Safe to operate                   | 2 d       |
+| **Total** |                                   | **~14 d** |
 
-Iterations 0–4 make a retro worth opening; 0–3 is a working summary. 5–6 can ship
-independently.
+Iterations are the internal work breakdown; they do not each ship. Iterations 0–5 are the
+MVP and land as PR 1–4; Iteration 6 lands as PR 5. Mapping: 0–1 → PR 1–2, 2 → PR 3,
+3–5 → PR 4, 6 → PR 5.
 
 ## 9. Open decisions
 
-Settle 1–5 before Iteration 2, 6–7 before PR 12.
+Settle 1–5 before Iteration 2, 6–7 before PR 4.
 
 1. **Done definition**: Status = Done (recommended, matches the board) with closed/merged as
    fallback, or the reverse.
@@ -369,307 +370,188 @@ Settle 1–5 before Iteration 2, 6–7 before PR 12.
 
 ## 10. PR breakdown
 
+Five PRs, one per delivery phase. The commit list inside each PR is the review script.
+
 Rules for every PR:
 
-- One reason to exist. No PR mixes a migration, behaviour and a new screen.
-- New behaviour stays inert until it is wired, or behind `BOARD_METRICS=1` until PR 11.
+- **One PR per phase**, not one per layer. Do not split a phase into infrastructure and UI
+  PRs unless review genuinely stalls.
 - Tests land with the logic they test, not in a later PR.
-- Target under ~400 changed lines excluding fixtures and generated files.
-- `npm run check` must pass; once PR 2 lands, `npm test` must pass too.
+- `npm run check` and `npm test` (once PR 1 lands) must pass.
+- New behaviour stays behind `BOARD_METRICS=1` until PR 4.
 - UI PRs include a screenshot and a keyboard/a11y note.
 - Charts use the shadcn-svelte `chart` components; no bespoke chart primitives.
 - Deploy notes say whether a migration, env var or re-auth is required.
 - Title in conventional-commit form, e.g. `feat(board): ...`, `chore(test): ...`.
+- Size guard: aim for ≤1,200 changed lines excluding fixtures. PR 4 is the deliberate
+  exception; split any PR only along its commit boundaries, and only if review stalls.
 
-### PR 1 — `chore(spike): add board probe script and fixtures`
+### PR 1 — `chore(foundation): probe the board, add tests and sprint schema`
 
-Depends on: nothing. Inert.
+Covers Iteration 0 and the schema half of Iteration 1. Depends on: nothing. Inert.
 
-- `scripts/spike-board.mjs`: takes `BOARD_URL` + `GITHUB_TOKEN`, pages items with
-  `archivedStates`, prints iteration/Status/hygiene counts, and writes a redacted fixture.
-- `test/fixtures/board-page.json` (or `docs/fixtures/`) captured from TTS.
+Commits:
 
-Review focus: the script only reads and prints; no production code. Confirm the fixture
-contains no tokens, emails or private data.
-Size: ~200 lines + fixture.
+1. `chore(spike)`: `scripts/spike-board.mjs` takes `BOARD_URL` + `GITHUB_TOKEN`, pages
+   items with `archivedStates`, prints iteration/Status/hygiene counts, writes a redacted
+   fixture. No production code.
+2. `chore(test)`: `vitest.config.ts`, `npm test`, CI step, and `src/lib/sprint-window.ts`
+   (`sprintWindow`, `isActive`, `isDone`, `doneAt`, `toDateOnly`) with tests for
+   end-date-exclusive, month boundaries, non-contiguous windows and done precedence.
+3. `feat(db)`: `migrations/006_sprint_metrics.sql` as section 4, plus `stats_json` on
+   `board_sync_logs`; row types and accessors in `db.ts` (`getBoardByProject`,
+   `upsertSprint`, `upsertSprintItems`, `recordSnapshot`, `getSprintMetricsRows`).
 
-### PR 2 — `chore(test): add vitest and sprint window utilities`
+Review focus: the fixture has no tokens, emails or private data; date math is correct; the
+migration is additive and its indexes match PR 4's queries.
 
-Depends on: nothing. Inert.
+Deploy: run `db:migrate:prod` before deploying. No behaviour changes.
 
-- `vitest.config.ts`, `npm test` script, CI step.
-- `src/lib/sprint-window.ts`: `sprintWindow(startDate, durationDays)`, `isActive`,
-  `isDone`, `doneAt`, `toDateOnly`. Pure functions only.
-- `src/lib/sprint-window.test.ts`: end date exclusive, month boundaries, iteration breaks
-  (windows may be non-contiguous), done precedence.
+Size: ~750 lines + fixture.
 
-Review focus: date math. This is the cheapest place to prevent an off-by-one that would
-poison every later metric.
-Size: ~150 lines.
+### PR 2 — `feat(board): connect a GitHub project board`
 
-### PR 3 — `feat(db): add sprint metrics schema and accessors`
+Covers the rest of Iteration 1. Depends on PR 1.
 
-Depends on: nothing. Inert.
+Commits:
 
-- `migrations/006_sprint_metrics.sql` exactly as section 4, plus a `stats_json` column on
-  `board_sync_logs` for hygiene counters. Additive only.
-- `src/lib/db.ts`: row types and accessors for `project_boards`, `sprints`, `sprint_items`,
-  `sprint_snapshots`, `board_sync_logs`; `getBoardByProject`, `upsertSprint`,
-  `upsertSprintItems`, `recordSnapshot`, `getSprintMetricsRows`.
-- Accessor tests against an in-memory SQLite if the harness supports it; otherwise pure
-  mapper tests.
+1. `feat(auth)`: `getGitHubOAuthUrl(clientId, redirectUri, state, scopes)`; sign-in keeps
+   `read:user`; `/auth/github?for=board` requests `read:user read:project`; callback stores
+   `tokens.scope` in `users.oauth_scopes`, updates the existing token instead of creating a
+   duplicate, and keeps the session; `hasProjectScope` + `MissingScopeError`.
+2. `feat(board)`: `board-connect.ts` with `parseBoardUrl` for orgs and users, `resolveBoard`
+   GraphQL for `projectV2` + fields, and tests for URL variants and zero/one/multiple
+   iteration fields.
+3. `feat(board)`: `connectBoard` / `disconnectBoard` server actions with the existing
+   ownership checks, plus the settings card and its "needs project scope", "org has not
+   approved the app" and "no iteration field" states.
 
-Review focus: additive migration, no changes to existing tables besides `users.oauth_scopes`,
-indexes match the queries in PR 10. Deploy note: run `db:migrate:prod` before deploying.
-Size: ~300 lines.
+Review focus: no forced re-consent for normal sign-in, no duplicate users, existing sessions
+survive, a user cannot connect a board to someone else's project, and the resolver performs
+no DB writes.
 
-### PR 4 — `feat(auth): request project scope on demand`
+Deploy: users connecting a board re-auth for `read:project`. The card stays behind
+`BOARD_METRICS=1`.
 
-Depends on: PR 3. Inert (no UI yet).
+Size: ~570 lines.
 
-- `getGitHubOAuthUrl(clientId, redirectUri, state, scopes)`; sign-in keeps `read:user`.
-- `/auth/github?for=board` requests `read:user read:project`.
-- Callback: store `tokens.scope` in `users.oauth_scopes`; update the existing user's token
-  instead of creating a duplicate; keep the session.
-- `hasProjectScope(user)` helper and a typed `MissingScopeError`.
+### PR 3 — `feat(board): sync sprints, items and daily snapshots`
 
-Review focus: no forced re-consent for normal sign-in; no duplicate users; existing sessions
-survive. Manual test: sign in normally, then re-auth for board, then sign out and back in.
-Size: ~120 lines.
+Covers Iteration 2. Depends on PR 2. The riskiest PR: it starts history.
 
-### PR 5 — `feat(board): resolve a project URL to fields`
+Commits:
 
-Depends on: PR 3, PR 4. Inert.
+1. `feat(board)`: `projects-graphql.ts` — typed query, pagination, error mapping and
+   rate-limit logging.
+2. `feat(board)`: `board-sync.ts` sprints slice — refresh fields and iteration config,
+   upsert `sprints` from `iterations` + `completedIterations` by `iteration_id`, derive
+   dates and state, write `board_sync_logs`, "Sync now" action.
+3. `feat(board)`: items slice — paginate with archived states, map issues/PRs/drafts,
+   iteration and Status values, labels, assignees and timestamps; done precedence; count
+   REDACTED; keep moved items in their old sprint via `last_seen_at`.
+4. `feat(board)`: baseline lock on the first sync of an active sprint, `baseline_approximate`
+   when late, daily idempotent snapshots, rollover to completed, and wiring into
+   `GET /api/scan` after reminder scanning.
 
-- `src/lib/board-connect.ts`: `parseBoardUrl` for
-  `/orgs/<org>/projects/<n>` and `/users/<login>/projects/<n>`; `resolveBoard` GraphQL query
-  for `projectV2` + fields.
-- Return: node id, title, iteration fields, Status field + options, done option detection.
-- Tests: URL variants (trailing slash, query string, wrong host, repo URL rejected), field
-  selection when there are zero/one/multiple iteration fields.
+Review focus: pagination terminates (including nested `fieldValues.pageInfo`), archived
+items are included, moved items never disappear, `end_date` is exclusive, "committed" is
+frozen exactly once, the sync fits the Worker subrequest/CPU budget, and reminder scanning is
+unaffected.
 
-Review focus: pure resolution, no DB writes. Confirm the GraphQL selection matches section 5.
-Size: ~200 lines.
+Deploy: run the first sync before the next sprint boundary; that sync starts history.
 
-### PR 6 — `feat(board): connect and disconnect a board`
+Size: ~750 lines.
 
-Depends on: PR 5.
+### PR 4 — `feat(insights): add sprint metrics, charts and retro export`
 
-- Server actions `connectBoard` and `disconnectBoard` in the project settings route; ownership
-  checks mirror the existing reminder actions.
-- UI card: paste URL, pick iteration field and Status field, show "needs project scope" CTA,
-  "org has not approved the app", and "no iteration field" states.
-- Writes `project_boards` only. No sync.
+Covers Iterations 3–5. Depends on PR 3. Largest PR; review it by commit, not as one diff.
 
-Review focus: authorization (a user cannot connect a board to someone else's project), error
-copy, and that the card is hidden/disabled when the feature flag is off.
-Size: ~250 lines.
+Commits:
 
-### PR 7 — `feat(board): sync iterations into cached sprints`
+1. `feat(metrics)`: `sprint-metrics.ts` with `getSprintSummary`, `getSprintTrend`,
+   `getFlowMetrics`, `getDataQuality`, each returning values plus a source label; seeded
+   tests for committed/done/added/carryover, WIP, median/p90, NOT_PLANNED exclusion and
+   approximate baselines.
+2. `feat(insights)`: `/projects/[id]/insights` load + page with ownership checks,
+   `?sprint=<iterationId>` URL state, sprint selector, summary cards, and the empty states
+   for no board / not synced / no iterations.
+3. `feat(insights)`: `npx shadcn-svelte@latest add chart`, `sprint-series.ts` + tests for
+   gaps, single-day sprints, zero-done sprints and non-contiguous windows; burnup,
+   throughput, commitment-vs-outcome and cycle-time charts with table fallbacks; the
+   data-quality banner.
+4. `feat(retro)`: scope-added, carryover and stuck-work lists with GitHub links;
+   `buildSprintMarkdown` + `GET /projects/[id]/insights/export` with the same ownership
+   check; copy and download controls.
+5. `feat(insights)`: `/insights` cross-project overview with throughput sparkbars from the
+   same series builders, one aggregate query, and the sidebar entry.
 
-Depends on: PR 6.
+Review focus: formulas match section 6; no chart computes a metric; every number links to
+its item; the export cannot leak another project; `/insights` stays at one query; Markdown
+output is deterministic for a closed sprint.
 
-- `src/lib/board-sync.ts` first slice: refresh fields and iteration config; upsert `sprints`
-  from `iterations` + `completedIterations`; derive `start_date`, `end_date`, `state`;
-  create/finish `board_sync_logs`; store hygiene `stats_json`.
-- "Sync now" action on the project page, sprints only.
-- Fixture-based mapper tests; idempotency test (sync twice, same row count).
+Deploy: set `BOARD_METRICS=1` after this PR; this is the first user-visible phase.
 
-Review focus: `iterationId` is the key, titles are display-only; `end_date` exclusive;
-completed iterations are imported even if the board has moved on.
-Size: ~200 lines.
+Size: ~1,700 lines.
 
-### PR 8 — `feat(board): sync items with archived states and done mapping`
+### PR 5 — `feat(board): close sprints, surface failures and document`
 
-Depends on: PR 7.
+Covers Iteration 6. Depends on PR 4.
 
-- Paginate `items(first: 100)` with `archivedStates: [ARCHIVED, NOT_ARCHIVED]`; map
-  `content` (issue/PR/draft), iteration value, Status value, labels, assignees, timestamps.
-- Count `REDACTED` items; never drop silently.
-- `isDone` mapping using the decided precedence; rows for an item are kept per sprint and
-  never deleted; `last_seen_at` distinguishes current membership from history.
-- Tests: archived item included, moved item produces a new sprint row and leaves the old one,
-  REDACTED counted.
+Commits:
 
-Review focus: pagination termination, nested `fieldValues.pageInfo`, and the movement rule
-above. This is the most subtle PR; read it with the fixture open.
-Size: ~300 lines.
+1. `feat(retro)`: "Close sprint" writes the final snapshot, sets `closed_at`, and is
+   idempotent; confirmation dialog explains that numbers become final and GitHub rollover no
+   longer changes them.
+2. `feat(board)`: cadence health (iterations planned through a date, renamed/deleted
+   iterations, missing field) and failure states (missing/revoked scope, org restriction,
+   deleted board, rate limit, timeout, partial sync), each with a message and retry path;
+   store and show the last error.
+3. `docs`: README section, `plan.md` milestone 10/11 status, screenshot in
+   `docs/screenshots/`.
 
-### PR 9 — `feat(board): lock baselines and snapshot daily`
+Review focus: closing twice is safe; every known failure maps to a human action; a stale
+sync is visible; docs match the real scope and history limits.
 
-Depends on: PR 8.
+Size: ~600 lines.
 
-- Baseline: on the first sync where a sprint is active, set `is_committed = 1` for its items
-  and `baseline_locked_at`; set `baseline_approximate` when the sync happens after the start
-  date.
-- Daily `sprint_snapshots` upsert, idempotent per `(sprint, item, day)`.
-- Mark sprints completed when `end_date` passes.
-- Wire `syncBoard` into `GET /api/scan` after reminder scanning; keep the manual action.
-- Tests: baseline approximate flag, repeated snapshot same day, sprint rollover.
-
-Review focus: what "committed" means and exactly when it is frozen. Deploy note: the first
-sync after deploy starts history — run it before the next sprint boundary.
-Size: ~250 lines.
-
-### PR 10 — `feat(metrics): add sprint metrics query layer`
-
-Depends on: PR 9. No UI.
-
-- `src/lib/sprint-metrics.ts`: `getSprintSummary`, `getSprintTrend`, `getFlowMetrics`,
-  `getDataQuality` from section 6, each returning values plus `source` (`exact` /
-  `approximate` / `timestamp`).
-- SQL in `db.ts` or the module; one query per view, no N+1.
-- Tests with seeded rows: committed/done/added/carryover, WIP, median/p90 helpers, NOT_PLANNED
-  excluded, approximate baseline labelled.
-
-Review focus: formulas against section 6, and that empty sprints return zeros rather than
-nulls/errors.
-Size: ~350 lines.
-
-### PR 11 — `feat(insights): add sprint page with summary cards`
-
-Depends on: PR 10.
-
-- `/projects/[id]/insights` load + page; auth and ownership checks; `?sprint=<iterationId>`
-  in the URL; sprint selector.
-- Summary cards: committed, done, added, carryover, merged PRs, median cycle time.
-- Empty states: no board, not synced, no iterations.
-- Link from the project page; no sidebar entry yet.
-
-Review focus: URL state survives reload and sharing; zero-sync state; ownership check.
-Size: ~250 lines.
-
-### PR 12 — `feat(insights): add charts and data-quality banner`
-
-Depends on: PR 11.
-
-- `npx shadcn-svelte@latest add chart` (LayerChart) and `src/lib/components/charts/`:
-  `burnup-chart.svelte`, `throughput-chart.svelte`, `commitment-chart.svelte`,
-  `cycle-time-chart.svelte`.
-- `src/lib/sprint-series.ts`: pure series builders for each chart, with tests for gaps,
-  single-day sprints, zero-done sprints and non-contiguous iteration windows.
-- Charts share `Chart.Container` and the `--chart-*` tokens, read from snapshots (not
-  `Date.now()`), and each has a table fallback and `prefers-reduced-motion` handling.
-- Data-quality banner: items without iteration, without Status, REDACTED, approximate
-  baseline, with links to the board.
-
-Review focus: no chart computes a metric inside the component; every chart has a table
-fallback; the banner never hides a gap.
-Size: ~350 lines.
-
-### PR 13 — `feat(retro): add scope, carryover and stuck work`
-
-Depends on: PR 11.
-
-- Added-after-start and carryover lists with GitHub links and assignees.
-- Stuck work panel from `reminders` rows created/resolved in the window, with age at
-  resolution; labelled as reminder-derived.
-- No per-person table yet.
-
-Review focus: every number links to the item; no reminder row is attributed to the wrong
-project; window boundaries match PR 2.
-Size: ~200 lines.
-
-### PR 14 — `feat(retro): export the sprint as Markdown`
-
-Depends on: PR 13.
-
-- `GET /projects/[id]/insights/export?sprint=<iterationId>` with the same ownership check;
-  `text/markdown` + `Content-Disposition`.
-- `buildSprintMarkdown` pure function + snapshot test; deterministic for a closed sprint.
-- Copy and download controls on the page.
-
-Review focus: authorization on the endpoint, no cross-project leakage, stable output.
-Size: ~200 lines.
-
-### PR 15 — `feat(insights): add cross-project overview`
-
-Depends on: PR 11.
-
-- `/insights` page: one row per project with an active sprint (committed/done, scope change,
-  carryover risk, last sync, warnings); a throughput sparkbar per row from completed sprints,
-  fed by the same series builders as PR 12.
-- Sidebar entry next to Inbox.
-
-Review focus: query count (the sparkbar data comes from the same aggregate query), partial
-states (some projects without boards), and mobile layout.
-Size: ~200 lines.
-
-### PR 16 — `feat(retro): close and freeze a sprint`
-
-Depends on: PR 9, PR 13.
-
-- "Close sprint" action: write the final snapshot for the day, set `closed_at`, state
-  `completed`; the GitHub iteration is untouched.
-- Confirmation dialog explaining that numbers become final and GitHub rollover no longer
-  changes them.
-- Tests: closing twice is idempotent; export after rollover still matches the frozen numbers.
-
-Review focus: the freeze happens before any GitHub mutation (there are none), and the action
-cannot run on another user's project.
-Size: ~200 lines.
-
-### PR 17 — `feat(board): surface cadence and failure states`
-
-Depends on: PR 16.
-
-- Cadence health: iterations planned through `<date>`, iteration renamed/deleted since last
-  sync, field missing.
-- Failure states: missing/revoked scope, org restriction, board deleted, rate limit, timeout,
-  partial sync; each with a specific message and a retry path.
-- Store and display the last error; no silent failures.
-
-Review focus: every failure maps to a human action, and a stale sync is visible on the page.
-Size: ~250 lines.
-
-### PR 18 — `docs: document sprint metrics and update the README`
-
-Depends on: PR 17.
-
-- README: feature, scopes, "Connect board" walkthrough, done definition, approximate
-  baselines, cron note, limitations.
-- Update `plan.md` milestone 10/11 status; screenshot in `docs/screenshots/`.
-
-Review focus: docs match the shipped behaviour, especially the scope and history limits.
-Size: ~150 lines.
-
-## 11. Merge order and parallel tracks
+## 11. Sequence
 
 ```text
-PR 1 ─┐
-PR 2 ─┼─ PR 3 ─┬─ PR 4 ─ PR 5 ─ PR 6 ─ PR 7 ─ PR 8 ─ PR 9 ─ PR 10 ─ PR 11 ─┬─ PR 12
-      │        │                                                        ├─ PR 13 ─ PR 14
-      │        │                                                        ├─ PR 15
-      │        │                                                        └─ PR 16 ─ PR 17 ─ PR 18
+PR 1 ─ PR 2 ─ PR 3 ─ PR 4 ─ PR 5
 ```
 
-- PR 1 and PR 2 can land immediately, in either order.
-- After PR 3, PR 4/5 (auth and resolver) can be reviewed in parallel; PR 6 needs both.
-- PR 7–9 are a chain; do not parallelise them.
-- After PR 10, PR 11 is the gate. PR 12, 13 and 15 can then go in parallel.
-- PR 14 needs PR 13; PR 16 needs PR 9 and 13; PR 17 needs PR 16; PR 18 last.
+- Strictly sequential. Each PR leaves the app deployable.
+- PR 1–3 are plumbing behind `BOARD_METRICS=1`; PR 2's connection card is the only visible
+  surface.
+- PR 3 is the riskiest: it starts history and calls GraphQL on a schedule.
+- PR 4 turns the feature on and is the first PR a PM can actually use.
+- PR 5 makes it safe to operate after the first real sprint.
 
-**Minimum shippable product:** through PR 11 (a sprint summary). PR 12–14 are what make it
-worth opening before a retro; PR 12 is the chart PR.
+**Minimum shippable product:** PR 1–4. **Safe to operate:** PR 5.
 
 ## 12. PR description skeleton
 
 ```md
 ## What
+
 One paragraph.
 
 ## Why
+
 Link the plan section or issue.
 
 ## How to review
+
 Where to start, what is intentionally out of scope.
 
 ## Test plan
+
 - [ ] npm run check
 - [ ] npm test
 - [ ] manual: ...
 
 ## Deploy notes
+
 - [ ] migration 006
 - [ ] re-auth for read:project
 - [ ] none
@@ -677,7 +559,8 @@ Where to start, what is intentionally out of scope.
 
 ## 13. Review safeguards
 
-- Migration PRs are additive and reviewed separately from behaviour.
+- Migrations are additive and reviewed as their own commit; a behaviour commit never
+  changes an existing column.
 - Every new route calls the same ownership helper; no route trusts `params.id`.
 - Tokens, scopes and GraphQL errors are never logged with secrets.
 - GraphQL queries are reviewed against section 5; a missing `archivedStates` or
