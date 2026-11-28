@@ -2,9 +2,10 @@ name: CI/CD
 
 on:
   push:
-    branches: [main]
+    # feat/sprint-metrics is the integration branch for the metrics feature.
+    branches: [main, feat/sprint-metrics]
   pull_request:
-    branches: [main]
+    branches: [main, feat/sprint-metrics]
   workflow_dispatch:
 
 # One run per branch. Pull request runs cancel older runs, deploys never do.
@@ -31,6 +32,8 @@ jobs:
       - run: npm ci
 
       - run: npm run check
+
+      - run: npm test
 
       - run: npm run build
 
