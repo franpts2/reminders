@@ -164,8 +164,7 @@ export const actions: Actions = {
 					iterationFieldId: resolved.iterationField.id,
 					iterationFields: resolved.iterationFields.map(({ id, name }) => ({ id, name })),
 					statusFieldId: resolved.statusField?.id ?? null,
-					statusFields: resolved.statusFields.map(({ id, name }) => ({ id, name })),
-					doneOptionName: resolved.doneOptionName
+					statusFields: resolved.statusFields.map(({ id, name }) => ({ id, name }))
 				}
 			};
 		} catch (cause) {

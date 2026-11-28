@@ -21,7 +21,6 @@
 		iterationFields: { id: string; name: string }[];
 		statusFieldId: string | null;
 		statusFields: { id: string; name: string }[];
-		doneOptionName: string | null;
 	}
 
 	interface Props {
@@ -38,6 +37,7 @@
 
 	let dirty = $state(false);
 	let deleteForm: HTMLFormElement;
+	let disconnectForm = $state<HTMLFormElement>();
 
 	// Captured once: afterwards the select owns the value until a save.
 	let startedDefinition = $state(
@@ -252,7 +252,7 @@
 				</div>
 			{/if}
 
-			{#if !data.boardScopeGranted}
+			{#if !data.boardScopeGranted || form?.needsScope}
 				<div class="mt-3 rounded-lg border p-4">
 					<p class="text-sm text-foreground">GitHub has not granted board access yet.</p>
 					<p class="mt-1 max-w-prose text-xs leading-5 text-muted-foreground">
@@ -304,13 +304,39 @@
 							</dl>
 						</div>
 
+						<AlertDialog.Root>
+							<AlertDialog.Trigger
+								class={buttonVariants({ variant: 'outline', size: 'sm' })}
+							>
+								Disconnect
+							</AlertDialog.Trigger>
+							<AlertDialog.Content>
+								<AlertDialog.Header>
+									<AlertDialog.Title>Disconnect this board?</AlertDialog.Title>
+									<AlertDialog.Description>
+										This removes the cached sprints and snapshots for this board. Reconnecting
+										starts a new history; captured data cannot be recovered. GitHub is not
+										changed.
+									</AlertDialog.Description>
+								</AlertDialog.Header>
+								<AlertDialog.Footer>
+									<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+									<AlertDialog.Action
+										variant="destructive"
+										onclick={() => disconnectForm?.requestSubmit()}
+									>
+										Disconnect
+									</AlertDialog.Action>
+								</AlertDialog.Footer>
+							</AlertDialog.Content>
+						</AlertDialog.Root>
 						<form
+							bind:this={disconnectForm}
 							method="POST"
 							action="?/disconnectBoard"
 							use:enhance={boardEnhance('Board disconnected')}
-						>
-							<Button type="submit" variant="outline" size="sm">Disconnect</Button>
-						</form>
+							class="hidden"
+						></form>
 					</div>
 				</div>
 			{:else if form?.boardPreview}
@@ -381,11 +407,10 @@
 						</div>
 					</div>
 
-					{#if form.boardPreview.doneOptionName}
-						<p class="mt-3 text-xs text-muted-foreground">
-							Items count as done when Status is “{form.boardPreview.doneOptionName}”.
-						</p>
-					{/if}
+					<p class="mt-3 text-xs text-muted-foreground">
+						Items count as done when the chosen Status field has a “Done” option; otherwise a
+						closed issue or merged pull request counts.
+					</p>
 
 					<div class="mt-4 flex flex-wrap items-center gap-2">
 						<Button type="submit" size="sm">Connect board</Button>
