@@ -32,6 +32,22 @@ describe('parseBoardUrl', () => {
 		});
 	});
 
+	it('accepts a project view URL', () => {
+		expect(parseBoardUrl('https://github.com/orgs/NIAEFEUP/projects/7/views/3')).toEqual({
+			ownerType: 'organization',
+			owner: 'NIAEFEUP',
+			number: 7
+		});
+	});
+
+	it('accepts a project view URL with filters', () => {
+		expect(
+			parseBoardUrl(
+				'https://github.com/users/francisca/projects/1/views/12?filterQuery=status%3ADone&pane=issue'
+			)
+		).toEqual({ ownerType: 'user', owner: 'francisca', number: 1 });
+	});
+
 	it('trims surrounding whitespace', () => {
 		expect(parseBoardUrl('  https://github.com/orgs/NIAEFEUP/projects/7  ').number).toBe(7);
 	});

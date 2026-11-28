@@ -91,12 +91,12 @@ export function parseBoardUrl(value: string): BoardUrl {
 		throw new BoardError('invalid_url', 'Board URLs must be on github.com.');
 	}
 
-	const org = /^\/orgs\/([^/]+)\/projects\/(\d+)\/?$/.exec(url.pathname);
+	const org = /^\/orgs\/([^/]+)\/projects\/(\d+)(?:\/views\/\d+)?\/?$/.exec(url.pathname);
 	if (org) {
 		return { ownerType: 'organization', owner: org[1], number: Number(org[2]) };
 	}
 
-	const user = /^\/users\/([^/]+)\/projects\/(\d+)\/?$/.exec(url.pathname);
+	const user = /^\/users\/([^/]+)\/projects\/(\d+)(?:\/views\/\d+)?\/?$/.exec(url.pathname);
 	if (user) {
 		return { ownerType: 'user', owner: user[1], number: Number(user[2]) };
 	}
