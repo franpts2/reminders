@@ -14,7 +14,8 @@
 		"db:migrate:prod": "wrangler d1 migrations apply github-pm-reminders-db --remote",
 		"db:seed:local": "node scripts/seed-dev.mjs",
 		"db:seed:reset": "node scripts/seed-dev.mjs --reset",
-		"check:oauth": "node scripts/check-oauth.mjs"
+		"check:oauth": "node scripts/check-oauth.mjs",
+		"spike:board": "node scripts/spike-board.mjs"
 	},
 	"devDependencies": {
 		"@internationalized/date": "^3.12.4",
