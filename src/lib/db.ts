@@ -857,13 +857,19 @@ export async function getBoardByProject(
 }
 
 /**
- * Reconnecting replaces the board config in place. A successful connect
- * clears the previous error; sync history is kept.
+ * Reconnecting the same board replaces the config in place and keeps sync
+ * history. Connecting a different board clears the cached sprints, items and
+ * snapshots first, so metrics cannot mix two boards.
  */
 export async function upsertProjectBoard(
 	db: D1Database,
 	board: ProjectBoardInput
 ): Promise<ProjectBoard> {
+	const existing = await getBoardByProject(db, board.project_id);
+	if (existing && existing.project_node_id !== board.project_node_id) {
+		await deleteBoardByProject(db, board.project_id);
+	}
+
 	await db
 		.prepare(
 			`INSERT INTO project_boards (
