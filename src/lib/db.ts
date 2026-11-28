@@ -92,9 +92,13 @@ export async function createUser(
 export async function updateUserAccessToken(
 	db: D1Database,
 	githubId: number,
-	accessToken: string
+	accessToken: string,
+	oauthScopes: string | null = null
 ): Promise<void> {
-	await db.prepare('UPDATE users SET access_token = ? WHERE github_id = ?').bind(accessToken, githubId).run();
+	await db
+		.prepare('UPDATE users SET access_token = ?, oauth_scopes = ? WHERE github_id = ?')
+		.bind(accessToken, oauthScopes, githubId)
+		.run();
 }
 
 export async function getUserById(db: D1Database, id: string): Promise<User | null> {

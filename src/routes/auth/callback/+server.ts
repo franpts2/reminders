@@ -39,16 +39,17 @@ export const GET: RequestHandler = async ({ url, cookies, platform }) => {
 	const githubUser = await fetchGitHubUser(tokens.access_token).catch((cause: unknown) => {
 		throw error(500, cause instanceof Error ? cause.message : 'Failed to fetch GitHub user');
 	});
-	const user = await getOrCreateUserFromGitHub(env.DB, githubUser, tokens.access_token).catch(
-		(cause: unknown) => {
-			throw error(
-				500,
-				cause instanceof Error
-					? `Failed to save user: ${cause.message}`
-					: 'Failed to save user'
-			);
-		}
-	);
+	const user = await getOrCreateUserFromGitHub(
+		env.DB,
+		githubUser,
+		tokens.access_token,
+		tokens.scope ?? null
+	).catch((cause: unknown) => {
+		throw error(
+			500,
+			cause instanceof Error ? `Failed to save user: ${cause.message}` : 'Failed to save user'
+		);
+	});
 
 	const sessionToken = await encryptSession(user.id, env.SESSION_SECRET);
 	cookies.set('session', sessionToken, {
@@ -59,5 +60,9 @@ export const GET: RequestHandler = async ({ url, cookies, platform }) => {
 		maxAge: 60 * 60 * 24 * 7
 	});
 
-	throw redirect(302, '/inbox');
+	const next = cookies.get('oauth_next');
+	cookies.delete('oauth_next', { path: '/' });
+	const destination = next && next.startsWith('/') && !next.startsWith('//') ? next : '/inbox';
+
+	throw redirect(302, destination);
 };

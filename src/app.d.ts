@@ -11,6 +11,7 @@ declare global {
 				APP_URL: string;
 				GITHUB_CLIENT_SECRET: string;
 				SESSION_SECRET: string;
+				BOARD_METRICS?: string;
 			};
 		}
 		interface Locals {
@@ -21,6 +22,7 @@ declare global {
 				email: string | null;
 				avatar_url: string | null;
 				access_token: string;
+				oauth_scopes: string | null;
 			};
 		}
 	}
