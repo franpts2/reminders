@@ -13,6 +13,7 @@ binding = "ASSETS"
 [vars]
 GITHUB_CLIENT_ID = "Ov23liaVhWsXg358CBZr"   # from your .dev.vars
 APP_URL = "https://reminders.franciscapt.dev"
+# BOARD_METRICS = "1"   # enables the sprint board connection card
 
 # Local development secrets go in .dev.vars (see .dev.vars.example).
 # Production secrets are set with:
